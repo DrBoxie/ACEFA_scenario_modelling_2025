@@ -1,4 +1,6 @@
 # TODO: Add mean of forecast for each scenario for comparison
+# TODO: Add tracking of vaccination while infectious
+# TODO: Add delay to onset of protection after vaccination
 # TODO: Test impact of adding delay to protection onset from vaccination
 # TODO: Add R_eff calculation and plot R_eff as a function of time
 
@@ -8,7 +10,6 @@
 # =============================================================================
 # The full execution pipeline for the code is:
 #    1. Run this file, and adapt the following variables as needed:
-#       - single_run_outputfigs:    activate / suppress output for each run separately. This is deprecated
 #       - ABC_output_results:       activate / suppress output of dataframes and plots of abc runs
 #       - pickle_dump:              activate / suppress output of pickle file with full states of runs
 #       - seed:                     only used to generate the seed list which goes into the code of each run
@@ -62,24 +63,27 @@ from tqdm import tqdm
 import time
 import gzip
 
-single_run_outputfigs = False                                                   # Suppress outputting figures for individual runs (if False) for quicker runs
-ABC_output_results = False                                                       # Suppress outputting figures and dataframes for ABC (if False) for quicker runs
+ABC_output_results = True                                                       # Suppress outputting figures and dataframes for ABC (if False) for quicker runs
 pickle_dump = False
-paral = False
-cores = 4
 
-def classic_abc(parallel = True, nr_cores = 4):
+nr_runs_per_part = 10
+accept_perc = 0.9
+
+paral = True
+cores = 12
+
+def classic_abc(parallel = True, nr_cores = 12):
     
     # Initialise the random number generator
-    seed = 502                                                                      # The first seed is used to run the simulation
-    seed2 = 463                                                                     # The second seed is only used to select parameters in LHS
+    seed = 502                                                                  # The first seed is used to run the simulation
+    seed2 = 463                                                                 # The second seed is only used to sample parameters in LHS
     rng = np.random.default_rng(seed)
     rng2 = np.random.default_rng(seed2)
     
     accepted_counter = 0
     
-    nr_particles = 200                                                          # Number of samples to produce in the LHS
-    seed_list = rng.integers(0, 1_000_000_000_000, size=nr_particles)
+    nr_particles = 2000                                                          # Number of samples to produce in the LHS
+    seed_list = rng.integers(0, 1_000_000_000_000, size=nr_particles * nr_runs_per_part)
     
     current_dir = os.getcwd().lower()  
     fig_folder_path = os.path.join(current_dir, "ABC outputs")
@@ -104,8 +108,7 @@ def classic_abc(parallel = True, nr_cores = 4):
     # Initialise state for simulation
     empty_states = sim.create_states(params) 
     
-    # runs = [(idx, particle, seed_list[idx], nr_particles, empty_states, params, current_dir) for idx, particle in enumerate(sample_array)]
-    runs = [(idx, particle, seed_list[idx]) for idx, particle in enumerate(sample_array)]
+    runs = [(idx, particle, seed_list[idx : nr_particles * nr_runs_per_part : nr_particles]) for idx, particle in enumerate(sample_array)]
     
     # common_var_all_runs = (nr_particles, empty_states, params, current_dir, sample_keys, peak_time_range, AR_range, VE_range)
     common_var_all_runs = {
@@ -116,7 +119,8 @@ def classic_abc(parallel = True, nr_cores = 4):
         "sample_keys": sample_keys,
         "peak_time_range": peak_time_range,
         "AR_range": AR_range,
-        "VE_range": VE_range
+        "VE_range": VE_range,
+        "accept_perc": accept_perc
         }
     
     results_list = []
@@ -126,12 +130,12 @@ def classic_abc(parallel = True, nr_cores = 4):
         with ProcessPoolExecutor(max_workers=nr_cores) as executor:
             results_list = list(tqdm(executor.map(run_particle_wrapper, full_vars_runs, chunksize=1), total = len(full_vars_runs), desc="Running particles"))
         
-        accepted_counter = sum(res["accepted"] for res in results_list)
+        accepted_counter = sum(res["accepted_part"] for res in results_list)
         
     else:
         for run in runs:
-            results_list.append(run_particle(*run, common_var_all_runs, False, accepted_counter))
-            if results_list[-1]["accepted"]:
+            results_list.append(run_particle(*run, common_var_all_runs, False, accepted_counter))            
+            if results_list[-1]["accepted_part"]:
                 accepted_counter += 1
         
     if accepted_counter == 0:
@@ -163,35 +167,35 @@ def classic_abc(parallel = True, nr_cores = 4):
         list_R0_rej = []
         
         for res in results_list:
-            list_prev.append(res["prevalences"])
-            list_inc.append(res["incidences"])
-            list_AR.append(res["AR"])
-            list_VE.append(res["VE"])
-            list_VE_alt.append(res["VE_alt"])
-            list_vacc_post_inf.append(np.sum(res["vacc_post_inf"]))
-            if res["accepted"]:
+            list_prev.append(res["prevalences"][0])
+            list_inc.append(res["incidences"][0])
+            list_AR.append(res["AR"][0])
+            list_VE.append(res["VE"][0])
+            list_VE_alt.append(res["VE_alt"][0])
+            list_vacc_post_inf.append(np.sum(res["vacc_post_inf"][0]))
+            if res["accepted_part"]:
                 list_accepted_particles.append(res["idx"])
-                list_R0_acc.append(res["R0"])
+                list_R0_acc.append(res["R0"][0])
             else:
-                list_R0_rej.append(res["R0"])
+                list_R0_rej.append(res["R0"][0])
 
-        fig_spag_plot = False
+        fig_spag_plot = True
         fig_corr_accepted_particles = False
-        fig_inf_per_comp_for_age_groups = False
-        VE_plots = True
-        VE_comparison_plot = True
+        fig_inf_per_comp_for_age_groups = True
+        VE_plots = False
+        VE_comparison_plot = False
         boxplot_vacc_post_inf = False
         R0_plot = False
         
-        plt_crt.outputs(list_prev, list_inc, list_AR, list_VE, list_VE_alt, params, current_dir, list_accepted_particles, list_vacc_post_inf, peak_time_range, 
+        plt_crt.outputs(list_prev, list_inc, list_AR, list_VE, list_VE_alt, params, list_accepted_particles, list_vacc_post_inf, peak_time_range, 
                         AR_range, VE_range, sample_array, sample_keys, fig_spag_plot, fig_inf_per_comp_for_age_groups, VE_comparison_plot,
                         fig_corr_accepted_particles, VE_plots, boxplot_vacc_post_inf, params_to_sample, fig_folder_path, parallel, nr_cores, R0_plot, list_R0_acc, list_R0_rej)
         
         print("Saving accepted particles.\n")
-        acc_part_df = pd.DataFrame(sample_array[list_accepted_particles], columns=sample_keys)
-        acc_part_df.to_csv(os.path.join(fig_folder_path, "accepted_particles.csv"), index=False)
-        acc_seed_list_df = pd.DataFrame(seed_list[list_accepted_particles], columns = ["Accepted_seeds"])
-        acc_seed_list_df.to_csv(os.path.join(fig_folder_path, "accepted_seeds.csv"), index=False)
+        acc_part_df = pd.DataFrame(sample_array[list_accepted_particles], columns=sample_keys, index = list_accepted_particles)
+        acc_part_df.to_csv(os.path.join(fig_folder_path, "accepted_particles.csv"), index=True)
+        acc_seed_list_df = pd.DataFrame(seed_list[list_accepted_particles], columns = ["Accepted_seeds"], index = list_accepted_particles)
+        acc_seed_list_df.to_csv(os.path.join(fig_folder_path, "accepted_seeds.csv"), index=True)
         
         print("Saving all particles.\n")
         all_part_df = pd.DataFrame(sample_array, columns=sample_keys)
@@ -279,7 +283,7 @@ def update_params(params, particle, keys, it = None):
 # -----------------------------
 def simulate_model(params, states, incidences, current_dir, rng):
     
-    sols, R0_series, incidences, vacc_post_inf = sim.main(params, states, incidences, current_dir, rng, single_run_outputfigs)
+    sols, R0_series, incidences, vacc_post_inf = sim.main(params, states, incidences, current_dir, rng)
     
     return sols, R0_series, incidences, vacc_post_inf
 
@@ -336,26 +340,53 @@ def compute_summary(prev, inc, params, peak_time_range, AR_range, VE_range, vacc
     else:
         return True, AR, VE, VE_alt
 
-def run_particle(idx, particle, seed, common_var_all_runs, parallel, accepted_counter = 0):
+def run_particle(idx, particle, seed_list, common_var_all_runs, parallel, accepted_counter = 0):
     
-    nr_particles, empty_states, params, current_dir, sample_keys, peak_time_range, AR_range, VE_range = itemgetter("nr_particles","empty_states", 
-                                "params", "current_dir", "sample_keys", "peak_time_range", "AR_range", "VE_range")(common_var_all_runs)    
+    nr_particles, empty_states, params, current_dir, sample_keys, peak_time_range, AR_range, VE_range, accept_perc = itemgetter("nr_particles","empty_states", 
+                                "params", "current_dir", "sample_keys", "peak_time_range", "AR_range", "VE_range", "accept_perc")(common_var_all_runs)    
     
-    rng = np.random.default_rng(seed)
+    acc_list = []
+    AR_list = []
+    VE_list = []
+    VE_alt_list = []
+    prev_list = []
+    inc_list = []
+    R0_list = []
+    vacc_post_inf_list = []
     
-    # Copy states and params for this particle
-    states = {k: v.copy() for k, v in empty_states.items()}
-    incidences = {k: v.copy() for k, v in empty_states.items() if k not in {"S0", "S1"}}
     params_run = copy.deepcopy(params)
 
     # Update parameters for this particle
     params_run = update_params(params_run, particle, sample_keys, idx)
-
-    # Run simulation
-    prevalences, R0_series, incidences, vacc_post_inf = simulate_model(params_run, states, incidences, current_dir, rng)
-
-    # Compute summary statistics & acceptance
-    accepted, AR, VE, VE_alt = compute_summary(prevalences, incidences, params_run, peak_time_range, AR_range, VE_range, vacc_post_inf)
+    
+    for it, seed in enumerate(seed_list):
+        
+        rng = np.random.default_rng(seed)
+        
+        # Copy states and params for this particle
+        states = {k: v.copy() for k, v in empty_states.items()}
+        incidences = {k: v.copy() for k, v in empty_states.items() if k not in {"S0", "S1"}}
+    
+        # Run simulation
+        prevalences, R0_series, incidences, vacc_post_inf = simulate_model(params_run, states, incidences, current_dir, rng)
+    
+        # Compute summary statistics & acceptance
+        accepted, AR, VE, VE_alt = compute_summary(prevalences, incidences, params_run, peak_time_range, AR_range, VE_range, vacc_post_inf)
+        
+        acc_list.append(accepted)
+        AR_list.append(AR)
+        VE_list.append(VE)
+        VE_alt_list.append(VE_alt)
+        prev_list.append(prevalences)
+        inc_list.append(incidences)
+        R0_list.append(R0_series[0][0])
+        vacc_post_inf_list.append(vacc_post_inf)
+     
+    perc_acc = sum(acc_list) /  len(seed_list)   
+    if perc_acc >= accept_perc:
+        accepted_part = True
+    else:
+        accepted_part = False
     
     if (idx+1) % 50 == 0 and not parallel:
         print(f"Percentage of particles done: {(idx+1)*100 / nr_particles:.0f}%")
@@ -363,16 +394,17 @@ def run_particle(idx, particle, seed, common_var_all_runs, parallel, accepted_co
             
     return {
         "idx": idx,
-        "seed": seed,
+        "seed": seed_list,
         "particle": particle,
-        "prevalences": prevalences,
-        "incidences": incidences,
-        "accepted": accepted,
-        "vacc_post_inf": vacc_post_inf,
-        "AR": AR,
-        "VE": VE,
-        "VE_alt": VE_alt,
-        "R0": R0_series[0][0]
+        "prevalences": prev_list,
+        "incidences": inc_list,
+        "accepted_list": acc_list,
+        "vacc_post_inf": vacc_post_inf_list,
+        "AR": AR_list,
+        "VE": VE_list,
+        "VE_alt": VE_alt_list,
+        "R0": R0_list,
+        "accepted_part": accepted_part
     }
 
 def run_particle_wrapper(args):

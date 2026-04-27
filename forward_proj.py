@@ -11,18 +11,31 @@ from matplotlib.ticker import StrMethodFormatter, FuncFormatter
 from concurrent.futures import ProcessPoolExecutor
 from tqdm import tqdm
 import copy
+import pickle
+import gzip
+import pyarrow as pa
+import pyarrow.parquet as pq
 
 plt.close("all")                                                                # Close all figures that may be open in memory
 
 local_parallel = True
 
-def forw_proj(parallel = True, nr_cores = 4):
+def forw_proj(parallel = True, nr_cores = 12):
     
     print("Let's get this thing on the road...\n")
     
-    output_figs = True
+    nr_proj_per_part = 4
+    seed = 790202       # Used whenever multiple runs are done for each combo of particle and scenario
+    
+    output_figs = False
     output_dfs = True
-    analyse_ARs = True
+    analyse_ARs = False
+    nr_of_parts_to_plot_mutlti_run = 1
+    
+    if nr_proj_per_part == 1:
+        pickle_file_name = "single_run"
+    elif nr_proj_per_part > 1:
+        pickle_file_name = "multi_run"
     
     curr_dir = os.getcwd().lower()
     particle_addr = os.path.join(curr_dir, "ABC outputs")
@@ -33,12 +46,12 @@ def forw_proj(parallel = True, nr_cores = 4):
     ACC_INF_INC = os.path.join(particle_addr, "acc_inf_inc.csv")
     output_folder_path = os.path.join(curr_dir, "Forward projection")
     
-    particles = pd.read_csv(PATH_IN)
+    particles = pd.read_csv(PATH_IN ,index_col = 0)
     part_vars = list(particles.columns)
     nr_parts = len(particles)
-    seed_list = np.array(pd.read_csv(SEED_IN))
-    acc_mid_phis = np.array(pd.read_csv(ACC_MID_IN))
-    acc_opt_phis = np.array(pd.read_csv(ACC_OPT_IN))
+    seed_list = np.array(pd.read_csv(SEED_IN, index_col = 0))
+    acc_mid_phis = np.array(pd.read_csv(ACC_MID_IN, index_col = 0))
+    acc_opt_phis = np.array(pd.read_csv(ACC_OPT_IN, index_col = 0))
     baseline_inf_inc = np.array(pd.read_csv(ACC_INF_INC))
     
     os.makedirs(output_folder_path, exist_ok=True)
@@ -57,23 +70,32 @@ def forw_proj(parallel = True, nr_cores = 4):
         "K": ["mid", ["2-4", "5-11", "12-17"], [0.4, 0.6, 0.6], "mid 2-18", "Mid_LAIV_2-18yo"]
         }
     
+    short_scenario_names = {k: scenarios[k][3] for k in scenarios}
+    scenario_names = {k: scenarios[k][4] for k in scenarios}
+    
     params = sim.init_params()
     
     # Initialise generic state for simulation
     empty_states = sim.create_states(params) 
     
-    records = []  # to store all rows for the final DataFrame
+    seed_list = seed_list.ravel()
+    # If the particles are run more than once per scenario, the seed list coming from ABC
+    # is overwritten with a new random seed list
+    if nr_proj_per_part > 1:
+        rng = np.random.default_rng(seed)
+        seed_list_new = rng.integers(0, 1_000_000_000_000, size=nr_parts * (nr_proj_per_part-1))
+        seed_list = np.concatenate((seed_list, seed_list_new))
     
     results_list = []
     
     if parallel:
-        full_vars_runs = [(part, seed_list[idx][0], acc_mid_phis[idx], acc_opt_phis[idx], scenarios, part_vars, params, empty_states, curr_dir) for idx, part in particles.iterrows()]
+        full_vars_runs = [(part, seed_list[pos::nr_parts], acc_mid_phis[pos], acc_opt_phis[pos], scenarios, part_vars, params, empty_states, curr_dir) for pos, (idx, part) in enumerate(particles.iterrows())]
         with ProcessPoolExecutor(max_workers=nr_cores) as executor:
             results_list = list(tqdm(executor.map(run_particle_wrapper, full_vars_runs, chunksize=1), total = len(full_vars_runs), desc="Still doing some forecasting magic"))
     
     else:
-        for idx, part in particles.iterrows():
-            results_list.append(run_forward_proj_particle(part, seed_list[idx][0], acc_mid_phis[idx], acc_opt_phis[idx], scenarios, part_vars, params, empty_states, curr_dir))
+        for pos, (idx, part) in enumerate(particles.iterrows()):
+            results_list.append(run_forward_proj_particle(part, seed_list[pos::nr_parts], acc_mid_phis[pos], acc_opt_phis[pos], scenarios, part_vars, params, empty_states, curr_dir))
             
             if idx % 5 == 0 and idx > 0:
                 print(f"Forward simulation of particle {idx} out of {nr_parts} done.")
@@ -88,10 +110,10 @@ def forw_proj(parallel = True, nr_cores = 4):
         AR_list = []
         AR_dict = {}
         
-        for i in range(nr_parts):
+        for part in range(nr_parts):
             AR_dict = {}
             for k in scenarios:
-                AR_dict[k] = results_list[i][1][k][:8] + results_list[i][1][k][8:]
+                AR_dict[k] = results_list[part][1][k][0][:8] + results_list[part][1][k][0][8:]
             AR_list.append(AR_dict)
                 
         total_AR_list = [
@@ -107,7 +129,7 @@ def forw_proj(parallel = True, nr_cores = 4):
         
         lowest_AR = sorted_indices[-perc:]
         
-        plot_AR_tot_inf(output_folder_path, scenarios, highest_AR, lowest_AR, results_list)
+        # plot_AR_tot_inf(output_folder_path, scenarios, highest_AR, lowest_AR, results_list)
     
         plot_corr_for_AR(output_folder_path, particles, part_vars, highest_AR, lowest_AR)
     
@@ -151,7 +173,21 @@ def forw_proj(parallel = True, nr_cores = 4):
         
         max_baseline = np.max(baseline_inf_inc)
         
-        plot_spaghetti_per_scenario(output_folder_path, max_baseline, thin_space_formatter, nr_parts, days, results_list, colors, labels)
+        filename_spag = "compare_all_scenarios_spag"
+        
+        plot_spaghetti_per_scenario(output_folder_path, filename_spag, max_baseline, thin_space_formatter, nr_parts, days, results_list, colors, labels, nr_proj_per_part, True, 1)
+        
+        if nr_proj_per_part > 1 and nr_of_parts_to_plot_mutlti_run > 1:
+            
+            nr_plots = min(nr_proj_per_part, nr_of_parts_to_plot_mutlti_run)
+
+            subfolder_path = os.path.join(output_folder_path, "individual_runs")
+            
+            for i in range(nr_plots):
+                
+                os.makedirs(subfolder_path, exist_ok=True)
+                filename_spag = f"plot_particle_{i}_all_runs"
+                plot_spaghetti_per_scenario(subfolder_path, filename_spag, max_baseline, thin_space_formatter, nr_parts, days, results_list, colors, labels, nr_proj_per_part, False, i)
         
         plot_AR_swarm(output_folder_path, scenarios, results_list, colors, labels, thin_space_formatter)
         
@@ -163,58 +199,126 @@ def forw_proj(parallel = True, nr_cores = 4):
         
         age_groups, N, nr_days, Unvacc_I_comps, Vacc_I_comps = itemgetter("age_groups", "N", "nr_days", "Unvacc_I_comps", "Vacc_I_comps")(params)
         
-        # Output dataframes
-        column_nms_AR = [age + "_unvacc" for age in age_groups] + [age + "_vacc" for age in age_groups]
+        # save particles and age group sizes
+        particles.to_csv(os.path.join(output_folder_path, "particles.csv"), index=True)
         
-        AR_per_scenario_age_strat = {s: np.zeros((nr_parts, 2*len(age_groups))) for s in scenarios}
+        df_laiv_mid_phis = pd.DataFrame(acc_mid_phis, columns=["LAIV_phi_V0_mid", "LAIV_phi_V1_mid"])
+        df_laiv_opt_phis = pd.DataFrame(acc_opt_phis, columns=["LAIV_phi_V0_opt", "LAIV_phi_V1_opt"])
         
-        for idx, res in enumerate(results_list):
-            for s in res[1]:
-                AR_per_scenario_age_strat[s][idx, :] = res[1][s]
-            
-        particles.to_csv(os.path.join(output_folder_path, "particles.csv"), index=False)
-        age_pops_df = pd.DataFrame([np.array(N)], columns = age_groups)
+        df_laiv_mid_phis.index = particles.index
+        df_laiv_opt_phis.index = particles.index
+        
+        df_laiv_mid_phis.to_csv(os.path.join(output_folder_path, "LAIV_mid_phis.csv"), index=True)
+        df_laiv_opt_phis.to_csv(os.path.join(output_folder_path, "LAIV_opt_phis.csv"), index=True)
+        age_pops_df = pd.DataFrame([N], columns = age_groups)
         age_pops_df.to_csv(os.path.join(output_folder_path, "age_pops.csv"), index=False)
         
-        # AR_dict[scenario_nm].append(AR_outputs)
-        AR_dfs = {s: pd.DataFrame(ARs, columns=column_nms_AR) for s, ARs in AR_per_scenario_age_strat.items()}
-        for name, df in AR_dfs.items():
-            df.to_csv(os.path.join(output_folder_path, f"{scenarios[name][3]}.csv"), index=False)       
-       
-        def vacc_string(vacc_stat):
-            if vacc_stat == "Unvacc_I_comps":
-                return "unvacc"
-            elif vacc_stat == "Vacc_I_comps":
-                return "vacc"
-            else:
-                raise ValueError("Error: Vacc_I_comps variable is not in the allowed list!")
-       
-        comp_dict_vacc_stat = {
-            "Vacc_I_comps": Vacc_I_comps,
-            "Unvacc_I_comps": Unvacc_I_comps
-            } 
-       
-        for idx, part in particles.iterrows():
-            # Run the scenario
+        # Output one csv per combination of scenario and run number of that particle-scenario combo
+        # The output is a dataframe where each row corresponds to one particle. The first nr_ages columns give
+        # the infection incidence for the nr_ages age groups for the unvaccinated population, and the next
+        # nr_ages columns give the infection incidence for the nr_ages age groups for the vaccinated population
+        column_nms_AR = [age + "_unvacc" for age in age_groups] + [age + "_vacc" for age in age_groups]        
+        print("Start output csv's for each iteration of the scenario-particle runs.\n")
+        for s in scenarios:
+            for run in range(nr_proj_per_part):
+                AR_per_scenario_age_run = np.zeros((nr_parts, len(age_groups) * 2))
+                
+                for part in range(nr_parts):
+                    AR_per_scenario_age_run[part] = results_list[part][1][s][run]
+                
+                df_AR_scenario_run = pd.DataFrame(AR_per_scenario_age_run, columns = column_nms_AR)
+                
+                filename_AR_age_strat = f"{short_scenario_names[s]}"
+                if nr_proj_per_part > 1:
+                    filename_AR_age_strat += f"_run_{run}"
+                df_AR_scenario_run.to_csv(os.path.join(output_folder_path, filename_AR_age_strat + ".csv"), index = False)                
+        print("End output csv's for each iteration of the scenario-particle runs.\n")
+        
+        # Output pickle with AR per scenario - particle - run_nr combination
+        print("Start output pickle file of AR's.\n")
+        filename_AR_pickle = os.path.join(output_folder_path, pickle_file_name + "_attack_rates.pkl")
+        AR_totals = {}
+        for part in range(nr_parts):
+            AR_totals[part] = {}
+            
             for s in scenarios:
-               
-                # --- Record infection incidence data per age and day ---
-                for age_idx, age_label in enumerate(age_groups):
-                    for day in range(nr_days):
-                        for vacc_stat in ["Unvacc_I_comps", "Vacc_I_comps"]:
-                            records.append({
-                                "scenario": scenarios[s][4],
-                                "setting": "temperate",
-                                "simulation_index": idx + 1,
-                                "age_group": age_label,
-                                "horizon": day + 1,
-                                "target": "infection_incidence_" + vacc_string(vacc_stat),
-                                "value": sum(results_list[idx][2][s][c][age_idx, day] for c in comp_dict_vacc_stat[vacc_stat])
+                AR_totals[part][s] = []
+                
+                for run in range(nr_proj_per_part):
+                    daily_incidence = results_list[part][0][s][run]             # the 0 in the second bracket selects the total infection incidence for that combination of scenario, particle, and run
+                    AR_totals[part][s].append(daily_incidence.sum())
+        
+        with gzip.open(filename_AR_pickle, "wb") as f:
+            pickle.dump(AR_totals, f)
+        print("End output pickle file of AR's.\n")
+        
+        # Output parquet file for downstream processing
+        print("Start output parquet file of full runs.\n")
+        filename_parquet = os.path.join(output_folder_path, "df_incid.parquet")
+        writer = None
+        rows = []
+        age_idx, day_idx = np.indices((len(age_groups), nr_days))
+        
+        age_groups_arr = np.array(age_groups)
+        age_column = age_groups_arr[age_idx.ravel()]
+        horizon_column = day_idx.ravel()
+        
+        chunk_size = 200
+        it = 1
+        
+        tot_size = len(scenarios) * nr_parts * len(age_groups) * nr_days * nr_proj_per_part * 2  # The *2 at the end is because the dataframe has one row for unvacc infection incidence, and one for vacc infection incidence
+        
+        for part in range(nr_parts):
+            for s in scenarios:
+                scenario_name = scenario_names[s]
+                for run in range(nr_proj_per_part):
+                    full_local_data = results_list[part][2][s][run]
+                    unvacc_total = sum(full_local_data[key] for key in Unvacc_I_comps)
+                    vacc_total = sum(full_local_data[key] for key in Vacc_I_comps)
+                    for target, arr in [("infection_incidence_unvacc", unvacc_total), ("infection_incidence_vacc", vacc_total)]:                        
+                        df_chunk = pd.DataFrame({
+                            "scenario": scenario_name,
+                            "simulation_index": part ,           # adding 1 to align with numbering in R
+                            "age_group": age_column,
+                            "horizon": horizon_column,
+                            "run_nr": run,
+                            "target": target,
+                            "value": arr.ravel()
                             })
+                                             
+                        rows.append(df_chunk)
+                                               
+                        if len(rows) >= chunk_size:
+                            df_big = pd.concat(rows, ignore_index = True)
+                            # convert to pyarrow table
+                            table = pa.Table.from_pandas(df_big)
+                        
+                            # initialise writer if first chuck
+                            if writer is None:
+                                writer = pq.ParquetWriter(filename_parquet, table.schema)
+                        
+                            # write the chunk
+                            writer.write_table(table)
+                            
+                            print(f"Written {100 * it * chunk_size * (len(age_groups) * nr_days) / tot_size:.0f}% of rows into dataframe.\n")
+                            it += 1
+                            
+                            rows = []
+                              
+        if rows:
+            df_big = pd.concat(rows, ignore_index = True)
+            table = pa.Table.from_pandas(df_big)
+            
+            if writer is None:
+                writer = pq.ParquetWriter(filename_parquet, table.schema)
+                
+            writer.write_table(table)
+    
+        if writer is not None:
+            writer.close()
+        
+        print("Finished outputting parquet file.\n")
 
-        # --- Convert to DataFrame and save ---
-        df_incid = pd.DataFrame(records)
-        df_incid.to_parquet(os.path.join(output_folder_path, "df_incid.parquet")) 
 
 def plot_corr_for_AR(fig_folder_path, full_parts, sample_keys, highest_AR, lowest_AR):
     
@@ -366,13 +470,44 @@ def plot_corr_for_AR(fig_folder_path, full_parts, sample_keys, highest_AR, lowes
         fig.savefig(fig_filepath)
         plt.close(fig)
 
+def create_summary_table(ax, summary_stats, title):
+    # fig, ax = plt.subplots(figsize=(10, 0.8*len(summary_stats)+2))
+    # fig.suptitle(title, fontsize=22, fontweight="bold")
+    ax.axis('off')
+    ax.set_title(title, fontsize = 22, fontweight = "bold")
+
+    col_labels = ["Scenario", "Median", "Mean", "SD"]
+
+    cell_text = [
+        [label,
+         f"{int(round(med)):,}",
+         f"{int(round(mean)):,}",
+         f"{int(round(std)):,}"]
+        for label, med, mean, std in summary_stats
+    ]
+
+    table = ax.table(
+        cellText=cell_text,
+        colLabels=col_labels,
+        cellLoc='center',
+        loc='center'
+    )
+    
+    table.auto_set_font_size(False)
+    table.set_fontsize(22)
+    table.auto_set_column_width(col=list(range(len(col_labels))))
+    table.scale(1.2, 2.2)
+
+    for (row, col), cell in table.get_celld().items():
+        if row == 0:
+            cell.set_text_props(weight='bold')
+
 def plot_AR_swarm(output_folder_path, scenarios, results_list, colors, labels, thin_space_formatter):
 
     # the two variables below are only used to add horizontal jitter to the plot
     width = 0.3
     rng2 = np.random.default_rng(seed=6978)
     
-    # Block for AR for each scenario
     fig_filepath_AR_swarm_no_lines = os.path.join(output_folder_path, "AR_swarm_no_lines")
     fig_filepath_AR_swarm_lines = os.path.join(output_folder_path, "AR_swarm_lines")
     
@@ -381,6 +516,11 @@ def plot_AR_swarm(output_folder_path, scenarios, results_list, colors, labels, t
     
     fig_lines, ax_lines = plt.subplots(figsize=(18,8))
     fig_no_lines, ax_no_lines = plt.subplots(figsize=(18,8))
+    
+    figures = [
+        (fig_no_lines, fig_filepath_AR_swarm_no_lines),
+        (fig_lines, fig_filepath_AR_swarm_lines)
+        ]
     
     nr_parts = len(results_list)
     x_store = {idx: [] for idx in range(nr_parts)}
@@ -394,20 +534,29 @@ def plot_AR_swarm(output_folder_path, scenarios, results_list, colors, labels, t
             prev_key = key
         
         for idx, part in enumerate(results_list):
-            part = part[0]
-            AR[idx] += np.sum(part[key])
+            daily_inf = part[0][key]
+            AR_per_run = np.sum(daily_inf, axis= 1 )
+            AR[idx] += np.mean(AR_per_run)
         
         x_jittered = x_pos + rng2.uniform(-width, width, nr_parts)
         
         ax_no_lines.scatter(x_jittered, AR, s = 20, alpha = 0.6, color=colors[key], edgecolors="none", zorder = 2)
-        ax_lines.scatter(x_jittered, AR, s = 20, alpha = 0.6, color=colors[key], edgecolors="none", zorder = 2)
+        
+        scatter_plots_list = [ax_lines]
+        
+        for ax in scatter_plots_list:
+            ax.scatter(x_jittered, AR, s = 20, alpha = 0.6, color=colors[key], edgecolors="none", zorder = 2)
+        
         med = np.median(AR)
+        
         ax_no_lines.hlines(med, x_pos-0.35, x_pos + 0.35, linewidth=2, color="black", zorder = 3)
-        ax_lines.hlines(med, x_pos-0.35, x_pos + 0.35, linewidth=2, color="black", zorder = 3)
-
+        for ax in scatter_plots_list:
+            ax.hlines(med, x_pos-0.35, x_pos + 0.35, linewidth=2, color="black", zorder = 3)
+        
         if x_pos > 1:
             for idx in range(nr_parts):
-                ax_lines.plot([x_store[idx], x_jittered[idx]], [y_store[idx], AR[idx]], color = colors[prev_key], linewidth = 0.6, alpha = 0.3, zorder = 1)
+                for ax in scatter_plots_list:
+                    ax.plot([x_store[idx], x_jittered[idx]], [y_store[idx], AR[idx]], color = colors[prev_key], linewidth = 0.6, alpha = 0.3, zorder = 1)
 
         for idx in range(nr_parts):
             x_store[idx] = x_jittered[idx]
@@ -415,36 +564,31 @@ def plot_AR_swarm(output_folder_path, scenarios, results_list, colors, labels, t
     
         prev_key = key
     
-    for ax in (ax_no_lines, ax_lines):
+    scatter_plots_list.append(ax_no_lines)
+        
+    for ax in scatter_plots_list:
         ax.tick_params(axis="both", which="major", labelsize=tick_label_size)
+        ax.set_xticks(range(1, len(scenarios)+1))
+        ax.set_xticklabels([])
+        # ax.set_xticklabels([labels[k] for k in scenarios], rotation=45, ha="right")
+        ax.set_ylabel("Attack rate", fontsize = axis_label_size)
+        ax.yaxis.set_major_formatter(thin_space_formatter)
+        ax.grid(False)
     
-    ax_no_lines.set_xticks(range(1, len(scenarios)+1))
     ax_no_lines.set_xticklabels([labels[k] for k in scenarios], rotation=45, ha="right")
-    ax_lines.set_xticks(range(1, len(scenarios)+1))
     ax_lines.set_xticklabels([labels[k] for k in scenarios], rotation=45, ha="right")
     
-    ax_no_lines.set_ylabel("Attack rate", fontsize = axis_label_size)
-    # ax_no_lines.yaxis.set_major_formatter(StrMethodFormatter('{x:,.0f}'))
-    ax_no_lines.yaxis.set_major_formatter(thin_space_formatter)
-    ax_lines.set_ylabel("Attack rate", fontsize = axis_label_size)
-    # ax_lines.yaxis.set_major_formatter(StrMethodFormatter('{x:,.0f}'))
-    ax_lines.yaxis.set_major_formatter(thin_space_formatter)
+    # if plot_comparison:
+    #     ax_run_once_comb.set_xticklabels([labels[k] for k in scenarios], rotation=45, ha="right")
     
-    # ax_no_lines.set_title("Attack rates per particle across scenarios")
-    ax_no_lines.grid(False)
-    # ax_lines.set_title("Attack rates per particle across scenarios")
-    ax_lines.grid(False)
+    for fig, filepath in figures:
+        fig.tight_layout()
+        fig.savefig(filepath)
+        plt.close(fig)
     
-    fig_no_lines.tight_layout()
-    fig_no_lines.savefig(fig_filepath_AR_swarm_no_lines)
-    fig_lines.tight_layout()
-    fig_lines.savefig(fig_filepath_AR_swarm_lines)
-    plt.close(fig_no_lines)
-    plt.close(fig_lines)
-
-def plot_spaghetti_per_scenario(output_folder_path, max_baseline, thin_space_formatter, nr_parts, days, results_list, colors, labels):
-
-    fig_filepath_compare_all_spag = os.path.join(output_folder_path, "compare_all__scenarios_spag")
+def plot_spaghetti_per_scenario(output_folder_path, filename_spag, max_baseline, thin_space_formatter, nr_parts, days, results_list, colors, labels, nr_proj_per_part, plot_all, part_nr):
+    
+    fig_filepath_spag = os.path.join(output_folder_path, filename_spag)
     
     nr_rows, nr_cols = 4, 3
     fig_compare_all, axes = plt.subplots(nr_rows, nr_cols, figsize=(24, 14), sharex=True)
@@ -475,9 +619,14 @@ def plot_spaghetti_per_scenario(output_folder_path, max_baseline, thin_space_for
         ax.yaxis.set_major_formatter(StrMethodFormatter('{x:,.0f}'))
         ax.yaxis.set_major_formatter(thin_space_formatter)
     
-    for i in range(nr_parts):
-        for key, ax in ax_map.items():
-            ax.plot(days, results_list[i][0][key], color = colors[key], linewidth=0.8, alpha=0.6, label= labels[key])
+    if plot_all:
+        for i in range(nr_parts):
+            for key, ax in ax_map.items():
+                ax.plot(days, results_list[i][0][key][0], color = colors[key], linewidth=0.8, alpha=0.6, label= labels[key]) # The last 0 in the subsetting of results_list selects only the first run for each particle when plotting the spaghetti plot
+    else:
+        for i in range(nr_proj_per_part):
+            for key, ax in ax_map.items():
+                ax.plot(days, results_list[part_nr][0][key][i], color = "royalblue", linewidth=0.8, alpha=0.6, label= labels[key]) # The last 0 in the subsetting of results_list selects only the first run for each particle when plotting the spaghetti plot
     
     for i, ax in enumerate(axes):
         handles_fig, labels_fig = ax.get_legend_handles_labels()
@@ -511,7 +660,7 @@ def plot_spaghetti_per_scenario(output_folder_path, max_baseline, thin_space_for
     
     # fig_compare_all.suptitle("Forecast: daily infection incidence")
     fig_compare_all.tight_layout()
-    fig_compare_all.savefig(fig_filepath_compare_all_spag)
+    fig_compare_all.savefig(fig_filepath_spag)
     plt.close(fig_compare_all)
 
 def plot_AR_tot_inf(output_folder_path, scenarios, highest_AR, lowest_AR, results_list):
@@ -627,7 +776,7 @@ def update_scenario_params(scenario, params, mid_phis, opt_phis):
     
     return params
 
-def run_forward_proj_particle(part, seed, mid_phis, opt_phis, scenarios, part_vars, params, empty_states, curr_dir):
+def run_forward_proj_particle(part, seed_list, mid_phis, opt_phis, scenarios, part_vars, params, empty_states, curr_dir):
     
     part = part.to_numpy()
     
@@ -644,33 +793,43 @@ def run_forward_proj_particle(part, seed, mid_phis, opt_phis, scenarios, part_va
     # Run the scenario
     for idx, s in enumerate(scenarios):
         
-        # Initialise the rng for each iteration
-        rng = np.random.default_rng(seed)
+        inf_inc_runs = []
+        total_inf_vacc_unvacc_runs = []
+        full_runs = []
         
-        params = copy.deepcopy(params_orig)
+        for run, seed in enumerate(seed_list):
         
-        # Update with scenario-specific values
-        params = update_scenario_params(scenarios[s], params, mid_phis, opt_phis)        
-        
-        states = {k: v.copy() for k, v in empty_states.items()}
-        incidences = {k: v.copy() for k, v in empty_states.items() if k not in {"S0", "S1"}}
-        
-        # Run simulation
-        prev, R0_series, inc, vacc_post_inf = sim.main(params, states, incidences, curr_dir, rng)
-        
-        # TODO: Adjust code to export vacc post inf in an age stratified way. I already did this in the abc_code.py and in the laiv_phis.py files
-        
-        # Total infectious incidence = sum over all infectious states and ages
-        inf_inc = np.sum([np.sum(inc[c], axis=0) for c in I_comps], axis=0)
-        # Total AR per age group separated between vaccinated and unvaccinated
-        total_inf_unvacc = sum(np.sum(inc[key], axis=1) for key in ["I_S0", "I_S1"])
-        total_inf_vacc = sum(np.sum(inc[key], axis=1) for key in ["I_V0", "I_V1"])
-        
-        scenario_inf[s] = inf_inc
-        scenario_AR_per_age[s] = np.concatenate([total_inf_unvacc, total_inf_vacc])
-        full_output[s] = inc
+            # Initialise the rng for each iteration
+            rng = np.random.default_rng(seed)
+            
+            params = copy.deepcopy(params_orig)
+            
+            # Update with scenario-specific values
+            params = update_scenario_params(scenarios[s], params, mid_phis, opt_phis)        
+            
+            states = {k: v.copy() for k, v in empty_states.items()}
+            incidences = {k: v.copy() for k, v in empty_states.items() if k not in {"S0", "S1"}}
+            
+            # Run simulation
+            prev, R0_series, inc, vacc_post_inf = sim.main(params, states, incidences, curr_dir, rng)
+            
+            # TODO: Adjust code to export vacc post inf in an age stratified way. I already did this in the abc_code.py and in the laiv_phis.py files
+            
+            # Total infectious incidence = sum over all infectious states and ages
+            inf_inc_runs.append(np.sum([np.sum(inc[key], axis=0) for key in I_comps], axis=0))
+            # Total AR per age group separated between vaccinated and unvaccinated
+            total_inf_unvacc = sum(np.sum(inc[key], axis=1) for key in ["I_S0", "I_S1"])
+            total_inf_vacc = sum(np.sum(inc[key], axis=1) for key in ["I_V0", "I_V1"])
+            
+            total_inf_vacc_unvacc_runs.append(np.concatenate([total_inf_unvacc, total_inf_vacc]))
+            full_runs.append(inc)
+            
+        scenario_inf[s] = inf_inc_runs
+        scenario_AR_per_age[s] = total_inf_vacc_unvacc_runs
+        full_output[s] = full_runs
         
     return scenario_inf, scenario_AR_per_age, full_output
+
 
 def run_particle_wrapper(args):
     return run_forward_proj_particle(*args)

@@ -22,7 +22,7 @@ def lhs(params, N, rng = None):
 #                       alphabetically).
 # =============================================================================
     
-    # If no random number generator has been given, use a new one
+    # If no random number generator has been given, create a new one
     if rng is None:
        rng = np.random.default_rng()
      

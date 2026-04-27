@@ -16,7 +16,7 @@ import copy
 new_phis = True
 local_parallel = True
 
-def laiv_phis(new_phis = True, parallel = True, nr_cores = 4):
+def laiv_phis(new_phis = True, parallel = True, nr_cores = 12):
     
     print("\nStarting the simulation.\n")
     
@@ -53,14 +53,14 @@ def laiv_phis(new_phis = True, parallel = True, nr_cores = 4):
     list_phis = []
     list_accepted = []
 
-    particles_df = pd.read_csv(PATH_IN)
+    particles_df = pd.read_csv(PATH_IN, index_col = 0)
     particles, part_vars = particles_df.to_numpy(), list(particles_df.columns)
     
     # part_vars = list(particles.columns)
     nr_parts = len(particles)
-    seed_list = np.array(pd.read_csv(SEED_IN))
+    seed_list = np.array(pd.read_csv(SEED_IN, index_col = 0))
     
-    # Generate seeds we will use for the generation of the phi's
+    # Generate seeds we will use for the generation of the phi's (the first element of each tuple is for the central scenario, and the second for the optimistic one)
     phi_seed_list = list(zip(rng2.integers(0, 1_000_000_000_000, size = nr_parts), rng2.integers(0, 1_000_000_000_000, size = nr_parts)))
     
     params = sim.init_params()
@@ -78,14 +78,11 @@ def laiv_phis(new_phis = True, parallel = True, nr_cores = 4):
     if parallel:
         
         full_vars_runs = [(idx, part, seed_list[idx][0], phi_seed_list[idx]) + (params, part_vars, phi_V1_min, phi_V1_max, phi_V0_max, LAIV_ages, laiv_idx, empty_states, curr_dir, VE_accept_range, True) for idx, part in enumerate(particles)]
-        # full_vars_runs = [run + (common_var_all_runs, True) for run in runs]
         with ProcessPoolExecutor(max_workers=nr_cores) as executor:
             results_list = list(tqdm(executor.map(run_particle_wrapper, full_vars_runs, chunksize=1), total = len(full_vars_runs), desc="Running simulations for phi's"))
     
     else:
         for idx, part in enumerate(particles):
-
-            # mid_phi, opt_phi, lst_sc, lst_phi, list_acc = individual_part_phi_calc(idx, part, seed_list[idx][0], phi_seed_list[idx], params, part_vars, phi_V1_min, phi_V1_max, phi_V0_max, LAIV_ages, laiv_idx, empty_states, curr_dir, VE_accept_range)
             
             results_list.append(individual_part_phi_calc(idx, part, seed_list[idx][0], phi_seed_list[idx], params, part_vars, phi_V1_min, phi_V1_max, phi_V0_max, LAIV_ages, laiv_idx, empty_states, curr_dir, VE_accept_range, False))
             
@@ -108,11 +105,11 @@ def laiv_phis(new_phis = True, parallel = True, nr_cores = 4):
         print("Plotting figures.")
         VE_plots(list_scenarios, list_phis, list_accepted, VE_fig_out_addr)
     
-    df_acc_mid_phis = pd.DataFrame(acc_mid_phi, columns=["phi_V0", "phi_V1"])
-    df_acc_opt_phis = pd.DataFrame(acc_opt_phi, columns=["phi_V0", "phi_V1"])
+    df_acc_mid_phis = pd.DataFrame(acc_mid_phi, columns=["phi_V0", "phi_V1"], index = particles_df.index)
+    df_acc_opt_phis = pd.DataFrame(acc_opt_phi, columns=["phi_V0", "phi_V1"], index = particles_df.index)
     
-    df_acc_mid_phis.to_csv(os.path.join(particle_addr, "acc_mid_phis.csv"), index=False)
-    df_acc_opt_phis.to_csv(os.path.join(particle_addr, "acc_opt_phis.csv"), index=False)
+    df_acc_mid_phis.to_csv(os.path.join(particle_addr, "acc_mid_phis.csv"), index=True)
+    df_acc_opt_phis.to_csv(os.path.join(particle_addr, "acc_opt_phis.csv"), index=True)
 
 def VE_plots(list_scenarios, list_phis, list_accepted, VE_fig_out_addr):
 

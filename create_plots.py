@@ -16,7 +16,7 @@ import time
 plt.close("all")
 
 # Helper function for spagetthi plots layout
-def style_spaghetti_plot(params, ax, cumul = False, fig = None, accept_rng = None, t_start = 0, t_end = 365, thin_space_formatter = None, title = None, ylab = None, vert_or_horiz = None):
+def style_spaghetti_plot(params, ax, cumul = False, fig = None, accept_rng = None, t_start = 0, t_end = 365, thin_space_formatter = None, title = None, ylab = None, vert_or_horiz = None, selected_parts = False):
     ax.set_xlabel("Day")
     ax.set_ylabel(ylab, labelpad=10)
     if vert_or_horiz == "vert":
@@ -27,7 +27,11 @@ def style_spaghetti_plot(params, ax, cumul = False, fig = None, accept_rng = Non
     ax.set_ylim(bottom=0)
     ax.yaxis.set_major_formatter(StrMethodFormatter('{x:,.0f}'))
     ax.yaxis.set_major_formatter(thin_space_formatter)
-    ax.legend(loc="upper left" if cumul else "upper right")
+    leg = ax.legend(loc="upper left" if cumul else "upper right")
+    if selected_parts:
+        for line in leg.get_lines():
+            line.set_linewidth(2.5)
+            line.set_alpha(1)
     ax.grid(False)
     fig.suptitle(title)
     fig.tight_layout()
@@ -122,11 +126,9 @@ def vacc_post_inf_plot(list_vacc_post_inf, list_accepted_particles, fig_folder_p
 
 def plot_R0(list_R0_acc, list_R0_rej, fig_folder_path):
     
-
     data = [list_R0_acc, list_R0_rej]
     labels = ["Accepted", "Rejected"]
     dot_colors = ["royalblue", "silver"]
-
     
     fig, ax = plt.subplots(figsize=(8, 6))
     
@@ -318,7 +320,6 @@ def plot_particle(part_id, incidences, *, nr_parts, nr_accepted, fig_folder_path
     plt.close(fig)
     
     # Figure of cumulative I state time series
-    
     I_cumul_per_age = np.cumsum(tot_inf_per_age, axis=1)
     I_cumul = np.sum(I_cumul_per_age, axis=0)
     
@@ -360,8 +361,69 @@ def plot_particle(part_id, incidences, *, nr_parts, nr_accepted, fig_folder_path
     
     return part_id
 
-def outputs(prevalences, incidences, AR_list, VE_list, VE_alt_list, params, curr_dir, list_accepted_particles, list_vacc_post_inf, peak_time_range, AR_range, VE_range, full_parts, sample_keys, fig_spag_plot, 
-            fig_inf_per_comp_for_age_groups, fig_VE_comparison_plot, fig_corr_accepted_particles, fig_VE_plots, boxplot_vacc_post_inf, sample_ranges, fig_folder_path, parallel, nr_cores, R0_plot, list_R0_acc, list_R0_rej): 
+def plot_selected_parts_spag(params, incidences, nr_parts, nr_runs_per_part, parallel, nr_cores, fig_folder_path, thin_space_formatter, list_selected_parts):
+    
+    nr_days, I_comps, t_start, t_end, ages = itemgetter("nr_days", "I_comps", "t_start", "t_end", "age_groups")(params)
+    days = np.arange(nr_days)
+    
+    # Infection incidence spagetthi plot
+    fig_filepath_inf_inc_selected_parts = os.path.join(fig_folder_path, "Spagetthi_particle_inf_inc_selected_parts")
+    fig_filepath_cumul_inf_selected_parts = os.path.join(fig_folder_path, "Spagetthi_particle_cumul_inf_selected_parts")
+    
+    palette = list(plt.get_cmap("Dark2").colors)
+    rng_col = np.random.default_rng(4328921)                                    # seed only used to select colours from palette
+    selected_colours = rng_col.choice(palette, size = nr_parts, replace = False)
+    
+    if parallel:
+        with ProcessPoolExecutor(max_workers=nr_cores) as executor:
+            futures = [executor.submit(compute_spag_line, i, incidences[i], I_comps) for i in range(len(incidences))]
+            results = [f.result() for f in as_completed(futures)]
+    else:
+        results = []
+        for i, inc_dict in enumerate(incidences):
+            # Total infectious incidence = sum over all infectious states and ages
+            total_inf_inc = np.sum([np.sum(inc_dict[c], axis=0) for c in I_comps], axis=0)
+            cumul_inf = np.cumsum(total_inf_inc)
+            results.append((i, total_inf_inc, cumul_inf))
+    
+    results.sort(key=lambda x: x[0])
+    
+    fig_spag_inf_inc_selected_parts, ax_spag_inf_inc_selected_parts = plt.subplots(figsize=(12, 8))
+    fig_spag_cumul_inf_selected_parts, ax_spag_cumul_inf_selected_parts = plt.subplots(figsize=(12, 8))
+    
+    for idx, total_inf, cumul_inf in results:
+        
+        particle_idx = idx // nr_runs_per_part
+        colour = selected_colours[particle_idx]
+        label = (f"Particle {list_selected_parts[idx // nr_runs_per_part]}" if idx % nr_runs_per_part == 0 else None)
+        
+        ax_spag_inf_inc_selected_parts.plot(
+            days, total_inf, 
+            color=colour,
+            linewidth=0.8,
+            alpha=0.2, 
+            label=label
+            )
+        
+        ax_spag_cumul_inf_selected_parts.plot(
+            days, cumul_inf, 
+            color=colour, 
+            linewidth= 0.8, 
+            alpha=0.2, 
+            label=label
+            )
+    
+    style_spaghetti_plot(params, ax_spag_inf_inc_selected_parts, cumul = False, fig = fig_spag_inf_inc_selected_parts, t_start = t_start, t_end = t_end, thin_space_formatter = thin_space_formatter, title="Infection incidence", ylab = "Daily Infection Incidence", selected_parts = True)
+    style_spaghetti_plot(params, ax_spag_cumul_inf_selected_parts, cumul = True, fig = fig_spag_cumul_inf_selected_parts, t_start = t_start, t_end = t_end, thin_space_formatter = thin_space_formatter, title="Cumulative infection incidence", ylab = "Cumulative Infection Incidence", selected_parts = True)
+    
+    fig_spag_inf_inc_selected_parts.savefig(fig_filepath_inf_inc_selected_parts)
+    fig_spag_cumul_inf_selected_parts.savefig(fig_filepath_cumul_inf_selected_parts)
+    plt.close(fig_spag_inf_inc_selected_parts)
+    plt.close(fig_spag_cumul_inf_selected_parts)
+
+def outputs(prevalences, incidences, AR_list, VE_list, VE_alt_list, params, list_accepted_particles, list_vacc_post_inf, peak_time_range, AR_range, VE_range,
+            full_parts, sample_keys, fig_spag_plot, fig_inf_per_comp_for_age_groups, fig_VE_comparison_plot, fig_corr_accepted_particles, fig_VE_plots, boxplot_vacc_post_inf, 
+            sample_ranges, fig_folder_path, parallel, nr_cores, R0_plot, list_R0_acc, list_R0_rej, selected_spag_plot = False, list_selected_parts = []): 
     
     print("Plotting figures:\n")
     
@@ -597,6 +659,19 @@ def outputs(prevalences, incidences, AR_list, VE_list, VE_alt_list, params, curr
         end_R0_plot = time.time()
         elapsed = end_R0_plot - start_R0_plot
         print(f"Boxplot of R0 took {elapsed:.3f} seconds to produce.\n")
+        
+    if selected_spag_plot:
+        start_selected_spag_plot = time.time()
+        
+        nr_parts = len(list_accepted_particles)
+        nr_runs_per_part = len(incidences) // nr_parts
+        plot_selected_parts_spag(params, incidences, nr_parts, nr_runs_per_part, parallel, nr_cores, fig_folder_path, thin_space_formatter, list_selected_parts)
+        print("Selected spaghetti plot done.\n")
+        
+        end_selected_spag_plot = time.time()
+        elapsed = end_selected_spag_plot - start_selected_spag_plot
+        print(f"Selected spaghetti plot took {elapsed:.3f} seconds to produce.\n")
+    
     
 if __name__ == "__main__":
     
@@ -604,7 +679,6 @@ if __name__ == "__main__":
     prevalences = 1
     incidences = 1
     params = 1
-    curr_dir = 1
     list_accepted_particles = 1
     peak_time_range = 1
     AR_range = 1 
@@ -615,7 +689,7 @@ if __name__ == "__main__":
     fig_inf_per_age_group_for_comps = 1
     fig_corr_accepted_particles = 1
     
-    outputs(prevalences, incidences, params, curr_dir, list_accepted_particles, peak_time_range, AR_range, full_parts, sample_keys, fig_spag_plot, fig_inf_per_comp_for_age_groups, fig_inf_per_age_group_for_comps, fig_corr_accepted_particles)
+    outputs(prevalences, incidences, params, list_accepted_particles, peak_time_range, AR_range, full_parts, sample_keys, fig_spag_plot, fig_inf_per_comp_for_age_groups, fig_inf_per_age_group_for_comps, fig_corr_accepted_particles)
     
     plt.close("all")
         

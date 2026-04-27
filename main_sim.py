@@ -4,19 +4,15 @@ from operator import itemgetter
 import main_stochastic as stoc
 # import main_determinstic as deter
 
-def main(params, states, incidences, curr_dir, rng, outputfigs = False, det_run = 0, stoc_run = 1, new_phis = False, laiv_ages = []):
+def main(params, states, incidences, curr_dir, rng, new_phis = False, laiv_ages = []):
     # TODO: Check whether the variables new_phis and laiv_ages are still in use. If they are, it should be via either the laiv_phis
     # calculation, or in the forward projection
-    if det_run:
-        # states = create_states(params)
-        run_det(params, curr_dir)
         
-    if stoc_run:
-        sols_stoc, R0_series, inc, vacc_post_inf = run_stoc(params, states, incidences, curr_dir, rng, outputfigs, new_phis = new_phis, laiv_ages = laiv_ages)
-            
+    sols_stoc, R0_series, inc, vacc_post_inf = stoc.simul(params, states, incidences, rng, new_phis = new_phis, laiv_ages = laiv_ages)
+                
     return sols_stoc, R0_series, inc, vacc_post_inf
 
-def init_params(nr_runs = 1):
+def init_params():
     
     tau = 1                                                                     # tau-leaping step size. (Has no effect if stochastic isn't run)
     
@@ -137,8 +133,7 @@ def init_params(nr_runs = 1):
     # Turn off external seeding of infection for testing purposes
     # p_ext = 0                                                  
     
-    params = {"nr_runs": nr_runs,
-              "tau": tau,
+    params = {"tau": tau,
               "t_start": t_start,
               "t_end": t_end,
               "nr_days": nr_days,
@@ -224,24 +219,9 @@ def allocate_vacc(daily_vacc_admin,target_cover, N, vacc_rates, t_vacc_start, t_
 
     return daily_vacc_admin
 
-def run_det(params, curr_dir):
-    
-    # This function is not in use anymore and may not work in the current setting without some tweaks
-    
-    # deter.main_run(params)
-    os.makedirs("figures deterministic", exist_ok=True)
-    os.makedirs("csv deterministic", exist_ok=True)
-
-def run_stoc(params, states, incidences, curr_dir, rng, outputfigs, new_phis = False, laiv_ages = []):
+def run_stoc(params, states, incidences, curr_dir, rng, new_phis = False, laiv_ages = []):
     
     sols_stoc, R0_series, incidences, vacc_post_inf = stoc.simul(params, states, incidences, rng, new_phis = new_phis, laiv_ages = laiv_ages)
-    
-    if outputfigs:
-        fig_folder_path = os.path.join(curr_dir, "figures stochastic")
-        csv_folder_path = os.path.join(curr_dir, "csv stochastic")
-        os.makedirs(fig_folder_path, exist_ok=True)
-        os.makedirs(csv_folder_path, exist_ok=True)
-        stoc.plotting_output(params, sols_stoc, R0_series, incidences)
     
     return sols_stoc, R0_series, incidences, vacc_post_inf
 
@@ -250,13 +230,8 @@ if __name__ == "__main__":
     current_dir = os.getcwd().lower()
     rng = np.random.default_rng()
     
-    # Turn stochastic and / or deterministic runs on (1) or off (0)
-    # Deterministic code has not been updated and need to be checked if it needs to be run
-    det_run = 0
-    stoc_run = 1
-    outputfigs = False
     params = init_params()
     states = create_states(params)
     daily_inc = create_daily_incidence(params)
-    main(params, states, daily_inc, current_dir, rng, outputfigs, det_run, stoc_run)
+    main(params, states, daily_inc, current_dir, rng)
     

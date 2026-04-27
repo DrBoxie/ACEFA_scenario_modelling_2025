@@ -1,8 +1,5 @@
 import numpy as np
-import matplotlib.pyplot as plt
-import os
 from operator import itemgetter
-import pandas as pd
 
 def initial_conditions(params, states):
     N, frac_S1 = itemgetter("N", "frac_S1")(params)
@@ -197,68 +194,16 @@ def compute_R0(params):
     R0 = max(np.linalg.eigvals(K).real)
     
     return R0
-    
-def plotting_output(params, sols, R0_series, inf): 
-    
-    t_iiv_start, t_iiv_end, compartments, t_start, t_end, age_groups, nr_runs = itemgetter("t_iiv_start", "t_iiv_end", "compartments", "t_start", "t_end", "age_groups", "nr_runs")(params)
-
-    t_eval = np.arange(t_start, t_end)                                          # full time interval
-
-    labels = [f"Age group {ag}" for ag in age_groups]
-    
-    colors = plt.cm.Accent.colors                                               # Decent-looking colour scheme for figures
-
-    for run in range(nr_runs):    
-        
-        fig_subfolder = os.path.join("figures stochastic", f"Run {run}")
-        os.makedirs(fig_subfolder, exist_ok=True)
-        csv_subfolder = os.path.join("csv stochastic", f"Run {run}")
-        os.makedirs(csv_subfolder, exist_ok=True)
-        
-        states = sols[run]
-        R0_run = R0_series[run]
-        
-        # Total per compartment over time
-        for i, label in enumerate(compartments):
-            data = states[label]    
-            total = data.sum(axis=0)
-
-            # # Get the maximum y-value
-            # ymax = np.max(total)
-    
-            fig_filepath = os.path.join(fig_subfolder, f"{label}_stochastic.png")
-            csv_filepath = os.path.join(csv_subfolder, f"{label}_stochastic.csv")
-            
-            plt.figure(figsize=(10, 6))
-            plt.stackplot(t_eval, states[f"{label}"], labels=labels, colors=colors, alpha = 0.8)
-            plt.xlim(left = 0)
-            plt.axvspan(t_iiv_start, t_iiv_end, color='orange', alpha=0.2, label='Vaccination period')
-            plt.xlabel("Day")
-            plt.ylabel(f"Population in {label}")
-            # plt.title(f"{label} by age group, stochastic run (R0 = {R0_run[0]:.2f})")
-            plt.title(f"{label} by age group, stochastic run")                # This line is the same as the one above but without the R0 in case we don't want it in the title
-            plt.legend(loc="upper right", frameon=False)
-            plt.grid(False)
-            plt.tight_layout()
-            plt.savefig(fig_filepath)
-            plt.close()
-            
-            # Save CSV
-            df = pd.DataFrame(data.T, columns=age_groups)
-            df["total"] = total
-            df["day"] = t_eval
-            df.to_csv(csv_filepath, index=False)
 
 def simul(params, states, incidences, rng, new_phis = False, laiv_ages = []):
     # TODO: Check whether the variables new_phis and laiv_ages are still in use. If they are, it should be via either the laiv_phis
     # calculation, or in the forward projection
     
-    # tau, nr_runs, p_ext, nr_days, nr_age, t_iiv_start, t_iiv_end, t_laiv_start, t_laiv_end, compartments, I_comps, N, daily_vacc_admin = itemgetter("tau", 
-    #         "nr_runs","p_ext", "nr_days", "nr_age", "t_iiv_start", "t_iiv_end","t_laiv_start", "t_laiv_end", "compartments", "I_comps", 
+    # tau, p_ext, nr_days, nr_age, t_iiv_start, t_iiv_end, t_laiv_start, t_laiv_end, compartments, I_comps, N, daily_vacc_admin = itemgetter("tau", 
+    #         "p_ext", "nr_days", "nr_age", "t_iiv_start", "t_iiv_end","t_laiv_start", "t_laiv_end", "compartments", "I_comps", 
     #         "N", "daily_vacc_admin")(params)
     
-    tau, nr_runs, p_ext, nr_days, nr_age, compartments, daily_vacc_admin = itemgetter("tau", 
-            "nr_runs","p_ext", "nr_days", "nr_age", "compartments", "daily_vacc_admin")(params)
+    tau, p_ext, nr_days, nr_age, compartments, daily_vacc_admin = itemgetter("tau", "p_ext", "nr_days", "nr_age", "compartments", "daily_vacc_admin")(params)
     
     # divide each day into subintervals depending on the size of tau, and for each time step calculate all the transitions that day
     nr_sub_int = int(1/tau)
@@ -269,41 +214,40 @@ def simul(params, states, incidences, rng, new_phis = False, laiv_ages = []):
     R0_series = []
     vacc_post_inf_list = []
     
-    for run in range(nr_runs):
-        # The initialisation of the run takes care of the initial conditions
-        states["S0"][:, 0], states["S1"][:, 0] = initial_conditions(params, states)
+    # The initialisation of the run takes care of the initial conditions
+    states["S0"][:, 0], states["S1"][:, 0] = initial_conditions(params, states)
+    
+    vacc_post_inf = np.zeros(nr_age, dtype=int)
+    
+    R0_run = []
+    
+    # # Calculate R0 for the day
+    R0_run.append(compute_R0(params))  
+    
+    for day in range(nr_days):
         
-        vacc_post_inf = np.zeros(nr_age, dtype=int)
-        
-        R0_run = []
-        
-        # # Calculate R0 for the day
-        R0_run.append(compute_R0(params))  
-        
-        for day in range(nr_days):
-            
-            # First administer the day's vaccinations at the start of the day
+        # First administer the day's vaccinations at the start of the day
 
-            admin_today = daily_vacc_admin[day].astype(int)
-            
-            if np.sum(admin_today) > 0:
-                vacc_post_inf = administer_vacc(states, incidences, params, day, admin_today, vacc_post_inf, new_phis = new_phis, laiv_ages = laiv_ages)
-                
-            # divide each day into 1/tau subintervals, and simulate transitions within it
-            for sub_int in range(nr_sub_int):
-                
-                tau_leap_step(states, incidences, params, day, nr_sub_int, daily_ext_inf_rate, rng)
-            
-            # at the end of each day (except for the last one), transition the 
-            # final populations of each compartments to be the starting 
-            # population for the next day
-            if day < nr_days-1:
-                for c in compartments:
-                    states[c][:, day+1] = states[c][:, day]
+        admin_today = daily_vacc_admin[day].astype(int)
         
-        sols.append(states)
-        R0_series.append(R0_run)
-        vacc_post_inf_list.append(vacc_post_inf)
+        if np.sum(admin_today) > 0:
+            vacc_post_inf = administer_vacc(states, incidences, params, day, admin_today, vacc_post_inf, new_phis = new_phis, laiv_ages = laiv_ages)
+            
+        # divide each day into 1/tau subintervals, and simulate transitions within it
+        for sub_int in range(nr_sub_int):
+            
+            tau_leap_step(states, incidences, params, day, nr_sub_int, daily_ext_inf_rate, rng)
+        
+        # at the end of each day (except for the last one), transition the 
+        # final populations of each compartments to be the starting 
+        # population for the next day
+        if day < nr_days-1:
+            for c in compartments:
+                states[c][:, day+1] = states[c][:, day]
+    
+    sols.append(states)
+    R0_series.append(R0_run)
+    vacc_post_inf_list.append(vacc_post_inf)
     
     return sols, R0_series, incidences, vacc_post_inf_list
      
