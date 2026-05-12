@@ -34,22 +34,23 @@ def lhs(params, N, rng = None):
     samples = np.zeros((N, d))
     
     for j, name in enumerate(param_names):
-        if name not in ["phi_V0", "phi_S1"]:                                                    # Skip phi_V0 and phi_S1 's for now, as they are treated in a separate loop further in the code
+        if name not in ["phi_V0", "phi_S1"]:                                                    # Separate approach for phi_V0 and phi_S1 to ensure ordering of phi values: phi_V1 <= phi_V0 and phi_V1 <= phi_S1
             low, high = params[name]
-            # Sample one point per interval
-            points = rng.uniform(intervals[:-1], intervals[1:], size=N)
-            rng.shuffle(points)                                                     # Permute across this dimension. rng.shuffle automatically saves the output in the variable that was given to it, and there is therefore no need to assign it to a variable
-            # Scale to parameter range
-            samples[:, j] = low + points * (high - low)
+            # Sample one point per interval            
+        else:
+            low, high = 0, 1
+        points = rng.uniform(intervals[:-1], intervals[1:], size=N)
+        rng.shuffle(points)                                                     # Permute across this dimension. rng.shuffle automatically saves the output in the variable that was given to it, and there is therefore no need to assign it to a variable
+        # Scale to parameter range
+        samples[:, j] = low + points * (high - low)
     
     # Separate loop for phi_V0 and phi_S1    
     idx_S1, idx_V0, idx_V1 = param_names.index("phi_S1"), param_names.index("phi_V0"), param_names.index("phi_V1")
+    high_S1, high_V0 = max(params["phi_S1"]), max(params["phi_V0"])
     for part in range(N):
-
-        u_S1, u_V0 = rng.uniform(size = 2)
-        samples[part, idx_S1] = samples[part, idx_V1] + (max(params["phi_S1"]) - samples[part, idx_V1]) * u_S1
-        samples[part, idx_V0] = samples[part, idx_V1] + (max(params["phi_V0"]) - samples[part, idx_V1]) * u_V0
         
+        samples[part, idx_S1] = samples[part, idx_V1] + (high_S1 - samples[part, idx_V1]) * samples[part, idx_S1]
+        samples[part, idx_V0] = samples[part, idx_V1] + (high_V0 - samples[part, idx_V1]) * samples[part, idx_V0]        
    
     return samples, param_names
 

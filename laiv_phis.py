@@ -46,6 +46,7 @@ def laiv_phis(new_phis = True, parallel = True, nr_cores = 12):
     VE_fig_out_addr = os.path.join(particle_addr, "acc_rej_phis_VE")
 
     results_list = []
+    acc_pes_phi = []
     acc_mid_phi = []
     acc_opt_phi = []
 
@@ -60,8 +61,8 @@ def laiv_phis(new_phis = True, parallel = True, nr_cores = 12):
     nr_parts = len(particles)
     seed_list = np.array(pd.read_csv(SEED_IN, index_col = 0))
     
-    # Generate seeds we will use for the generation of the phi's (the first element of each tuple is for the central scenario, and the second for the optimistic one)
-    phi_seed_list = list(zip(rng2.integers(0, 1_000_000_000_000, size = nr_parts), rng2.integers(0, 1_000_000_000_000, size = nr_parts)))
+    # Generate seeds we will use for the generation of the phi's (the first element of the tuple is for the pessimistic scenario, the second for the mid scenario, and the third for the optimistic one)
+    phi_seed_list = list(zip(rng2.integers(0, 1_000_000_000_000, size = nr_parts), rng2.integers(0, 1_000_000_000_000, size = nr_parts), rng2.integers(0, 1_000_000_000_000, size = nr_parts)))
     
     params = sim.init_params()
     nr_days, nr_age, pop, t_end, unvacc_comps, vacc_comps, I_comps = itemgetter("nr_days", "nr_age", "tot_pop", "t_end", "Unvacc_comps", "Vacc_comps", "I_comps")(params)    
@@ -90,11 +91,12 @@ def laiv_phis(new_phis = True, parallel = True, nr_cores = 12):
                 print(f"Finished particle number {idx}.\n")
                 
     for i in range(len(results_list)):
-        acc_mid_phi.append(results_list[i][0])
-        acc_opt_phi.append(results_list[i][1])
-        list_scenarios.append(results_list[i][2])
-        list_phis.append(results_list[i][3])
-        list_accepted.append(results_list[i][4])
+        acc_pes_phi.append(results_list[i][0])
+        acc_mid_phi.append(results_list[i][1])
+        acc_opt_phi.append(results_list[i][2])
+        list_scenarios.append(results_list[i][3])
+        list_phis.append(results_list[i][4])
+        list_accepted.append(results_list[i][5])
         
     print("Simulation for phi's is finished.\n")
     # -----------------------------
@@ -105,9 +107,11 @@ def laiv_phis(new_phis = True, parallel = True, nr_cores = 12):
         print("Plotting figures.")
         VE_plots(list_scenarios, list_phis, list_accepted, VE_fig_out_addr)
     
+    df_acc_pes_phis = pd.DataFrame(acc_pes_phi, columns=["phi_V0", "phi_V1"], index = particles_df.index)
     df_acc_mid_phis = pd.DataFrame(acc_mid_phi, columns=["phi_V0", "phi_V1"], index = particles_df.index)
     df_acc_opt_phis = pd.DataFrame(acc_opt_phi, columns=["phi_V0", "phi_V1"], index = particles_df.index)
     
+    df_acc_pes_phis.to_csv(os.path.join(particle_addr, "acc_pes_phis.csv"), index=True)
     df_acc_mid_phis.to_csv(os.path.join(particle_addr, "acc_mid_phis.csv"), index=True)
     df_acc_opt_phis.to_csv(os.path.join(particle_addr, "acc_opt_phis.csv"), index=True)
 
@@ -158,28 +162,31 @@ def VE_plots(list_scenarios, list_phis, list_accepted, VE_fig_out_addr):
     plt.close(fig)
 
 def individual_part_phi_calc(idx, part, run_seed, phi_seeds, params, part_vars, phi_V1_min, phi_V1_max, phi_V0_max, laiv_ages, laiv_idx, empty_states, curr_dir, VE_accept_range, parallel):
-    
-    vacc_comps, unvacc_comps = itemgetter("Vacc_comps", "Unvacc_comps")(params)
 
     list_phis = []
     list_scenarios = []
     list_accepted = []
     
-    for s in [ "mid", "optimistic"]:
+    for s in ["pessimistic", "mid", "optimistic"]:
         accepted = False
         
         params = forw.update_generic(params, part, part_vars)
         
-        if s == "mid":
+        vacc_comps, unvacc_comps, phi_S1 = itemgetter("Vacc_comps", "Unvacc_comps", "phi_S1")(params)
+        
+        if s == "pessimistic":
             rng2 = np.random.default_rng(phi_seeds[0])
-        elif s == "optimistic":
+        elif s == "mid":
             rng2 = np.random.default_rng(phi_seeds[1])
+        elif s == "optimistic":
+            rng2 = np.random.default_rng(phi_seeds[2])
         
         iterator = 0
         
         while not accepted:
             
-            phi1 = rng2.uniform(phi_V1_min, phi_V1_max)
+            u_V1 = rng2.uniform()
+            phi1 = phi_S1[0] * u_V1
 
             u_V0 = rng2.uniform()
             phi0 = phi1 + (phi_V0_max - phi1) * u_V0                
@@ -222,7 +229,9 @@ def individual_part_phi_calc(idx, part, run_seed, phi_seeds, params, part_vars, 
             
             if (min(VE_accept_range[s]) <= VE <= max(VE_accept_range[s])):
                 accepted = True
-                if s == "mid":
+                if s == "pessimistic":
+                    acc_pes_phi = [phi0, phi1]
+                elif s == "mid":
                     acc_mid_phi = [phi0, phi1]
                 else:
                     acc_opt_phi = [phi0, phi1]
@@ -239,7 +248,7 @@ def individual_part_phi_calc(idx, part, run_seed, phi_seeds, params, part_vars, 
                 if iterator % 20 == 0:
                     print(f"Particle {idx} in scenario {s} has been run {iterator} times\n")
             
-    return acc_mid_phi, acc_opt_phi, list_scenarios, list_phis, list_accepted
+    return acc_pes_phi, acc_mid_phi, acc_opt_phi, list_scenarios, list_phis, list_accepted
 
 def run_particle_wrapper(args):
     return individual_part_phi_calc(*args)

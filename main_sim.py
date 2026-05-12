@@ -2,19 +2,19 @@ import numpy as np
 import os
 from operator import itemgetter
 import main_stochastic as stoc
-# import main_determinstic as deter
 
 def main(params, states, incidences, curr_dir, rng, new_phis = False, laiv_ages = []):
     # TODO: Check whether the variables new_phis and laiv_ages are still in use. If they are, it should be via either the laiv_phis
     # calculation, or in the forward projection
+    # TODO: I think curr_dir can be removed from the function definition above. Check this.
         
-    sols_stoc, R0_series, inc, vacc_post_inf = stoc.simul(params, states, incidences, rng, new_phis = new_phis, laiv_ages = laiv_ages)
+    prevs, R0_series, inc, vacc_post_inf = stoc.simul(params, states, incidences, rng, new_phis = new_phis, laiv_ages = laiv_ages)
                 
-    return sols_stoc, R0_series, inc, vacc_post_inf
+    return prevs, R0_series, inc, vacc_post_inf
 
 def init_params():
     
-    tau = 1                                                                     # tau-leaping step size. (Has no effect if stochastic isn't run)
+    tau = 1                                                                     # tau-leaping step size.
     
     t_start, t_end = 0, 365
     t_iiv_start, t_iiv_end = 59, 226                                            # Start and end date of IIV program
@@ -36,7 +36,7 @@ def init_params():
     nr_age = len(age_groups)
     nr_comps = len(compartments)    
     
-    tot_pop = 1000000
+    tot_pop = 1_000_000
     
     # Age distribution with 7 age groups
     # frac_ages = np.array([0.010752583, 0.044639546, 0.08338837, 0.073682919, 0.614286160, 0.129143011, 0.044107411])
@@ -133,6 +133,20 @@ def init_params():
     # Turn off external seeding of infection for testing purposes
     # p_ext = 0                                                  
     
+    # format of scenarios dictionary is key = "name" and value = [scenario type, age groups receiving LAIV, coverage percentages for these groups, scenario name]
+    scenarios = {
+        "A": ["baseline", [], [], "baseline", "Status quo"],
+        "B": ["pessimistic", ["5-11"], [0.4], "pessimistic 5-12", "Pessimistic_LAIV_5-12yo"], 
+        "E": ["pessimistic", ["5-11", "12-17"], [0.4, 0.4], "pessimistic 5-18", "Pessimistic_LAIV_5-18yo"], 
+        "C": ["mid", ["5-11"], [0.6], "mid 5-12", "Mid_LAIV_5-12yo"], 
+        "F": ["mid", ["5-11", "12-17"], [0.6, 0.6], "mid 5-18" ,"Mid_LAIV_5-18yo"], 
+        "D": ["optimistic", ["5-11"], [0.8], "optimistic 5-12", "Optimistic_LAIV_5-12yo"], 
+        "G": ["optimistic", ["5-11", "12-17"], [0.8, 0.8], "optimistic 5-18", "Optimistic_LAIV_5-18yo"],
+        "H": ["mid", ["2-4"], [0.4], "mid 2-5", "Mid_LAIV_2-5yo"], 
+        "J": ["mid", ["2-4", "5-11"], [0.4, 0.6], "mid 2-12", "Mid_LAIV_2-12yo"], 
+        "K": ["mid", ["2-4", "5-11", "12-17"], [0.4, 0.6, 0.6], "mid 2-18", "Mid_LAIV_2-18yo"]
+        }
+    
     params = {"tau": tau,
               "t_start": t_start,
               "t_end": t_end,
@@ -168,7 +182,8 @@ def init_params():
               "p_ext": p_ext,
               "shift": shift,
               "laiv_rates": laiv_rates,
-              "target_cover": target_cover
+              "target_cover": target_cover,
+              "scenarios": scenarios
               }
     
     return params

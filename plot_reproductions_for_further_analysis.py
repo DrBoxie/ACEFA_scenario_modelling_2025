@@ -2,51 +2,59 @@
 import numpy as np
 import os
 import pandas as pd
-import pyarrow.dataset as ds
 import matplotlib.pyplot as plt
 import main_sim as sim
 from operator import itemgetter
 from matplotlib.ticker import FuncFormatter
 import time
 from matplotlib.lines import Line2D
-# from matplotlib.ticker import StrMethodFormatter
-# import gzip
-# import pickle
+from matplotlib.colors import LinearSegmentedColormap, Normalize
+from matplotlib.patches import Rectangle
+import duckdb
 
-def plot_reproduction_calcs():
+plt.close("all")
+
+# if "new" than plots are for the outputs after updates of phi sampling, if "old" than it's for those before the updates
+old_vs_new_plots = "new"
+
+def plot_reproduction_calcs(old_vs_new_plots):
     
     curr_dir = os.getcwd().lower()
     files_folder_path = os.path.join(curr_dir, "Forward projection")
     filename_full_df = os.path.join(files_folder_path, "df_incid_summed.parquet")
-    dataset = ds.dataset(filename_full_df, format = "parquet")
+    filename_max_timing = os.path.join(files_folder_path, "df_max_timing.parquet")
+    df_max_timing = pd.read_parquet(filename_max_timing)
+    filename_df_reduction_pct = os.path.join(files_folder_path, "mean_reduction_df_scenario_F.csv")
+    df_red_only_mid_5_18 = pd.read_csv(filename_df_reduction_pct, index_col = 0)
     
-    selected_parts = [55, 57, 67, 40]
-    filtered_ds = ds.field("simulation_index").isin(selected_parts)
+    if old_vs_new_plots == "old":
+        selected_parts = [55, 57, 67, 40]
+        col_map = {
+            55: "most_neg",
+            57: "no_change",
+            67: "med_red",
+            40: "max_red"
+            }
+    elif old_vs_new_plots == "new":
+        selected_parts = [20, 27, 55, 141]
+        col_map = {
+            20: "most_neg",
+            27: "no_change",
+            55: "med_red",
+            141: "max_red"
+            }
+    else:
+        raise ValueError("Error: old_vs_new_plots value can only be 'old' or 'new' !.")
     
-    dfs = []
-    
-    scanner = dataset.scanner(filter = filtered_ds, batch_size = 50_000)
-    
-    i = 1
-    for batch in scanner.to_batches():
-        if batch.num_rows > 0:
-            dfs.append(batch.to_pandas())
-        if i % 10 == 0:
-            print(f"Processed {i} batches.")
-        i += 1
-        
-    df = pd.concat(dfs, ignore_index = True)
-    print("")
+    selected_parts_str = ", ".join(map(str, selected_parts))
+    df_selected = duckdb.sql(f"""
+        SELECT *
+        FROM read_parquet('{filename_full_df}')
+        WHERE simulation_index IN ({selected_parts_str})
+    """).df()
     
     params = sim.init_params()
-    nr_days, t_start, t_end = itemgetter("nr_days", "t_start", "t_end")(params)
-    
-    col_map = {
-        55: "most_neg",
-        57: "no_change",
-        67: "med_red",
-        40: "max_red"
-        }
+    nr_days, t_start, t_end, scenarios, age_groups = itemgetter("nr_days", "t_start", "t_end", "scenarios", "age_groups")(params)
     
     colors = {
         "most_neg": "#D95F02",
@@ -61,20 +69,21 @@ def plot_reproduction_calcs():
         "med_red": "Median reduction",
         "max_red": "Maximal reduction"}
     
-    scenarios = {
-        "A": ["baseline", [], [], "baseline", "Status quo"],
-        "B": ["pessimistic", ["5-11"], [0.4], "pessimistic 5-12", "Pessimistic_LAIV_5-12yo"], 
-        "E": ["pessimistic", ["5-11", "12-17"], [0.4, 0.4], "pessimistic 5-18", "Pessimistic_LAIV_5-18yo"], 
-        "C": ["mid", ["5-11"], [0.6], "mid 5-12", "Mid_LAIV_5-12yo"], 
-        "F": ["mid", ["5-11", "12-17"], [0.6, 0.6], "mid 5-18" ,"Mid_LAIV_5-18yo"], 
-        "D": ["optimistic", ["5-11"], [0.8], "optimistic 5-12", "Optimistic_LAIV_5-12yo"], 
-        "G": ["optimistic", ["5-11", "12-17"], [0.8, 0.8], "optimistic 5-18", "Optimistic_LAIV_5-18yo"],
-        "H": ["mid", ["2-4"], [0.4], "mid 2-5", "Mid_LAIV_2-5yo"], 
-        "J": ["mid", ["2-4", "5-11"], [0.4, 0.6], "mid 2-12", "Mid_LAIV_2-12yo"], 
-        "K": ["mid", ["2-4", "5-11", "12-17"], [0.4, 0.6, 0.6], "mid 2-18", "Mid_LAIV_2-18yo"]
+    param_ranges = {
+        "beta_0": (0.037, 0.055),
+        "beta_1": (0.05, 0.3),
+        "shift": (40, 190),
+        "frac_S1": (0.2, 0.8),
+        "phi_S1": (0.2, 0.8),
+        "phi_V0": (0.2, 0.8),
+        "phi_V1": (0.2, 0.8),
+        "phi_V0_pes": (0, 0.8),
+        "phi_V1_pes": (0, 0.8),
+        "phi_V0_mid": (0, 0.8),
+        "phi_V1_mid": (0, 0.8),
+        "phi_V0_opt": (0, 0.8),
+        "phi_V1_opt": (0, 0.8),
         }
-    
-    age_list = ['<1', '1', '2-4', '5-11', '12-17', '18-64', '65-79', '80+']
     
     scenario_nms = {k: v[4] for k, v in scenarios.items()}
     scenario_labels = {k: v[3].replace("mid", "central") for k, v in scenarios.items()}
@@ -90,100 +99,891 @@ def plot_reproduction_calcs():
     
     days = np.arange(nr_days)
     
-    # plot_spaghetti_per_scenario(files_folder_path, thin_space_formatter, days, df, colors, col_map, particle_labels, legend_handles, scenario_nms, scenario_labels)
+    # plot_spaghetti_per_scenario(files_folder_path, thin_space_formatter, days, df_selected, colors, col_map, particle_labels, legend_handles, scenario_nms, scenario_labels)
     
-    # plot_spaghetti_age_strat(files_folder_path, thin_space_formatter, days, df, scenario_nms, scenario_labels, col_map, colors, particle_labels, age_list)
+    # plot_spaghetti_age_strat(files_folder_path, thin_space_formatter, days, df_selected, scenario_nms, scenario_labels, col_map, colors, particle_labels, age_groups)
     
-    # plot_AR_swarm(files_folder_path, scenarios, df, colors, col_map, particle_labels, thin_space_formatter, legend_handles)
+    # plot_AR_swarm(files_folder_path, scenarios, df_selected, colors, col_map, particle_labels, thin_space_formatter, legend_handles)
     
-    # plot_AR_age_strat_swarm(files_folder_path, scenarios, df, colors, col_map, thin_space_formatter, legend_handles, age_list)
+    # plot_AR_age_strat_swarm(files_folder_path, scenarios, df_selected, colors, col_map, thin_space_formatter, legend_handles, age_groups)
     
-    plot_particles_correlation_enriched(files_folder_path)
+    # plot_particles_correlation_enriched(files_folder_path, df_red_only_mid_5_18)        
+    
+    plot_shift_vs_peak_time(files_folder_path, df_max_timing, df_red_only_mid_5_18, thin_space_formatter, scenario_labels, scenarios, param_ranges)
+    
+    # plot_beta_vs_peak_time(files_folder_path, filename_full_df, df_red_only_mid_5_18, thin_space_formatter, scenario_labels, scenarios, param_ranges)
+    
+    # plot_scatter_plot_params(files_folder_path, df_red_only_mid_5_18, param_ranges)
+    
+    # plot_selected_betas(files_folder_path, df_red_only_mid_5_18, selected_parts, col_map, colors)
 
-def plot_particles_correlation_enriched(fig_folder_path):
+def plot_shift_vs_peak_time(output_folder_path, df_max_timing, df_parts, thin_space_formatter, scenario_labels, scenarios, param_ranges):
     
-    fig_filepath = os.path.join(fig_folder_path, "corr_parts_params")
+    print("Plotting shift vs infection incidence peak time.\n")
     
+    nr_parts = len(df_parts)
     
+    filename_shift_vs_peak = "shift_vs_peak_time"
+    filename_beta_peak_vs_peak_time = "beta_peak_vs_peak_time"
+    
+    fig_filepath_shift_peak = os.path.join(output_folder_path, filename_shift_vs_peak)
+    fig_filepath_beta_peak_vs_peak_time = os.path.join(output_folder_path, filename_beta_peak_vs_peak_time)
+    
+    nr_rows, nr_cols = 4, 3
+    fig_shift_vs_peak, axes = plt.subplots(nr_rows, nr_cols, figsize=(20, 22), sharex=True)
+    fig_beta_peak_vs_peak_time, axes_beta = plt.subplots(nr_rows, nr_cols, figsize=(20, 22), sharex=True)
+    axes = axes.flatten() 
+    axes_beta = axes_beta.flatten()
+    axes[0].axis("off")  # left of baseline
+    axes[2].axis("off")  # right of baseline
+    axes_beta[0].axis("off")  # left of baseline
+    axes_beta[2].axis("off")  # right of baseline
+    
+    ax_map ={
+        "A": axes[1], # 0 and 2 are skipped because the top row only contains the baseline figure
+        "B": axes[3],       
+        "C": axes[4],        
+        "D": axes[5],        
+        "E": axes[6],       
+        "F": axes[7],        
+        "G": axes[8],     
+        "H": axes[9],
+        "J": axes[10],
+        "K": axes[11]
+        }
+    
+    ax_beta_map ={
+        "A": axes_beta[1], # 0 and 2 are skipped because the top row only contains the baseline figure
+        "B": axes_beta[3],       
+        "C": axes_beta[4],        
+        "D": axes_beta[5],        
+        "E": axes_beta[6],       
+        "F": axes_beta[7],        
+        "G": axes_beta[8],     
+        "H": axes_beta[9],
+        "J": axes_beta[10],
+        "K": axes_beta[11]
+        }
+    
+    df_max_by_part = {
+        part: group
+        for part, group in df_max_timing.groupby("simulation_index")
+    }
+    
+    fmt_shift = FuncFormatter(lambda x, _: f"{x:.0f}")
+    fmt_beta_peak = FuncFormatter(lambda x, _: f"{x:.0f}")
+    fmt_peak = FuncFormatter(lambda y, _: f"{y:.0f}")
+    
+    strip_height = 0.16
+    
+    shift_range = [0, 365] # use this range instead of the actual range of shift to make the figure into squares
+    beta_peak_range = [0, 365] # use this range instead of the actual range of beta to make the figure into squares
+    peak_day_range = [0, 365]
+
+    # pct_norm = Normalize(
+    #     vmin=df_parts["pct_reduction"].min(),
+    #     vmax=df_parts["pct_reduction"].max()
+    # )
+    # cmap_pct = "coolwarm_r"
+
+    pct_min = df_parts["pct_reduction"].min()
+    pct_max = df_parts["pct_reduction"].max()
+    
+    # pct_norm = TwoSlopeNorm(
+    #     vmin=pct_min,
+    #     vcenter=0,
+    #     vmax=pct_max
+    # )
+    
+    pct_norm = Normalize(
+        vmin = pct_min,
+        vmax = pct_max
+        )
+    
+    zero_pos = (0 - pct_min) / (pct_max - pct_min)
+    
+    cmap_pct = LinearSegmentedColormap.from_list(
+        "red_gray_blue_green",
+        [
+            (0.00, "#7F0000"),   # strongly negative: dark red
+            (zero_pos, "#B0B0B0"),   # zero: gray
+            (min(zero_pos + 0.01, 1), "#2166AC"), # slightly positive: blue
+            (1.00, "#1A9850"),   # strongly positive: green
+        ]
+    )
+    
+    tick_label_size = 22
+    axis_label_size= 24
+    
+    for key in ax_map:
+        ax = ax_map[key]
+        ax_beta = ax_beta_map[key]
+        
+        ax.set_xlim(peak_day_range)
+        ax.set_ylim(shift_range)
+        
+        ax_beta.set_xlim(peak_day_range)
+        ax_beta.set_ylim(beta_peak_range)
+        
+        ax.grid(True, linestyle=":", linewidth=0.7, alpha=0.6)
+        ax_beta.grid(True, linestyle=":", linewidth=0.7, alpha=0.6)
+        
+        ax.xaxis.set_major_formatter(fmt_peak)
+        ax.yaxis.set_major_formatter(fmt_shift)
+        
+        ax_beta.xaxis.set_major_formatter(fmt_peak)
+        ax_beta.yaxis.set_major_formatter(fmt_beta_peak)
+        
+        ax.add_patch(
+            Rectangle(
+                (0, 1.0),
+                1,
+                strip_height,
+                transform=ax.transAxes,
+                facecolor="white",
+                edgecolor="black",
+                linewidth=1.2,
+                clip_on=False
+            )
+        )
+        
+        ax_beta.add_patch(
+            Rectangle(
+                (0, 1.0),
+                1,
+                strip_height,
+                transform=ax_beta.transAxes,
+                facecolor="white",
+                edgecolor="black",
+                linewidth=1.2,
+                clip_on=False
+            )
+        )
+        
+        ax.text(
+            0.5,
+            1.0 + strip_height / 2,
+            scenario_labels[key],
+            transform=ax.transAxes,
+            ha="center",
+            va="center",
+            fontsize=18,
+            fontweight="bold",
+            clip_on=False
+        )
+        
+        ax_beta.text(
+            0.5,
+            1.0 + strip_height / 2,
+            scenario_labels[key],
+            transform=ax_beta.transAxes,
+            ha="center",
+            va="center",
+            fontsize=18,
+            fontweight="bold",
+            clip_on=False
+        )
+        
+        ax.set_box_aspect(1)
+        # ax.set_aspect("equal", adjustable="box")
+        ax.plot(
+        [0, 365],
+        [0, 365],
+        color="black",
+        linestyle="--",
+        linewidth=1
+    )
+        
+        ax_beta.set_box_aspect(1)
+        # ax.set_aspect("equal", adjustable="box")
+        ax_beta.plot(
+        [0, 365],
+        [0, 365],
+        color="black",
+        linestyle="--",
+        linewidth=1
+    )
+    
+    for part in range(nr_parts):
+        
+        particle_params = df_parts.loc[df_parts["particle"] == part].iloc[0]
+
+        shift = particle_params["shift"]
+        
+        beta_0 = particle_params["beta_0"]
+        beta_1 = particle_params["beta_1"]
+        t_start = 0
+        t_end = 365
+        nr_days = t_end - t_start
+        t = np.linspace(t_start, t_end, num = nr_days)
+        beta = beta_0 * (1 +  beta_1 * np.sin(( 2 * np.pi * (t - shift) ) / nr_days))
+        beta_max_day = np.argmax(beta) + 1
+        
+        pct_reduction = particle_params["pct_reduction"]
+    
+        df_max_part = df_max_by_part[part]
+        
+        for key in ax_map:
+        
+            ax = ax_map[key]
+            ax_beta = ax_beta_map[key]
+    
+            peak_days = (
+                df_max_part[df_max_part["scenario"] == scenarios[key][4]]
+                .sort_values("run_nr")
+            )
+    
+            ax.scatter(
+                peak_days["peak_day"].to_numpy(),
+                np.full(len(peak_days), shift),
+                c=np.full(len(peak_days), pct_reduction),
+                cmap=cmap_pct,
+                norm=pct_norm,
+                s=7,
+                alpha = 1,
+            )
+            
+            ax_beta.scatter(
+                peak_days["peak_day"].to_numpy(),
+                np.full(len(peak_days), beta_max_day),
+                c=np.full(len(peak_days), pct_reduction),
+                cmap=cmap_pct,
+                norm=pct_norm,
+                s=7,
+                alpha = 1,
+            )
+    
+        if part % 10 == 0:
+            print(f"Particle {part} plotted peak day plots.\n")
+    
+    for i in range(len(axes)):
+    
+        ax = axes[i]
+        ax_beta = axes_beta[i]
+    
+        ax.tick_params(
+            axis="both",
+            which="major",
+            labelsize=tick_label_size
+        )
+        
+        ax_beta.tick_params(
+            axis="both",
+            which="major",
+            labelsize=tick_label_size
+        )
+    
+        row = i // nr_cols
+    
+        if not ax.has_data():
+            continue
+    
+        if row < nr_rows - 1:
+            ax.set_xlabel("")
+            ax_beta.set_xlabel("")
+        else:
+            ax.set_xlabel("peak day", fontsize=axis_label_size)
+            ax_beta.set_xlabel("peak day", fontsize=axis_label_size)
+    
+        leftmost_ax = None
+    
+        for j in range(row * nr_cols, (row + 1) * nr_cols):
+            if axes[j].has_data():
+                leftmost_ax = axes[j]
+                break
+    
+        if ax != leftmost_ax:
+            ax.set_ylabel("")
+            ax_beta.set_ylabel("")
+        elif row in [1, 3]:
+            ax.set_ylabel("")
+            ax_beta.set_ylabel("")
+        else:
+            ax.set_ylabel("shift", fontsize=axis_label_size)
+            ax_beta.set_ylabel("Beta peak day", fontsize=axis_label_size)
+    
+    sm = plt.cm.ScalarMappable(
+        norm=pct_norm,
+        cmap=cmap_pct
+    )
+    sm.set_array([])
+    
+    cbar_ax = fig_shift_vs_peak.add_axes([0.92, 0.15, 0.02, 0.7])
+    cbar = fig_shift_vs_peak.colorbar(sm, cax=cbar_ax)
+    
+    cbar_beta_ax = fig_beta_peak_vs_peak_time.add_axes([0.92, 0.15, 0.02, 0.7])
+    cbar_beta = fig_beta_peak_vs_peak_time.colorbar(sm, cax=cbar_beta_ax)
+    
+    cbar.set_label("Percent reduction", fontsize=axis_label_size)
+    cbar.ax.tick_params(labelsize=tick_label_size)
+    
+    cbar_beta.set_label("Percent reduction", fontsize=axis_label_size)
+    cbar_beta.ax.tick_params(labelsize=tick_label_size)
+    
+    fig_shift_vs_peak.suptitle(
+        "Peak time vs shift",
+        fontsize=28,
+        y=0.99
+    )
+    
+    fig_beta_peak_vs_peak_time.suptitle(
+        "Peak time vs beta peak day",
+        fontsize=28,
+        y=0.99
+    )
+    
+    fig_shift_vs_peak.subplots_adjust(
+        left=0.07,
+        right=0.88,
+        bottom=0.08,
+        top=0.93,
+        wspace=0.08,
+        hspace=0.20
+    )
+    
+    fig_beta_peak_vs_peak_time.subplots_adjust(
+        left=0.07,
+        right=0.88,
+        bottom=0.08,
+        top=0.93,
+        wspace=0.08,
+        hspace=0.20
+    )
+    
+    fig_shift_vs_peak.savefig(fig_filepath_shift_peak, dpi=300)
+    plt.close(fig_shift_vs_peak)
+    fig_beta_peak_vs_peak_time.savefig(fig_filepath_beta_peak_vs_peak_time, dpi=300)
+    plt.close(fig_beta_peak_vs_peak_time)
+    
+    print("Finished plotting beta vs infection incidence peak time.\n")
+
+def plot_scatter_plot_params(output_folder_path, full_df, param_ranges):
+    
+    print("Plotting parameter scatter plots")
+    
+    fig_filepath = os.path.join(output_folder_path, "params_scatter_shared_axis")
+    
+    pct_red = full_df[["particle", "pct_reduction"]].copy()
+    df = full_df.drop(columns = ["scenario", "old_particle_nr", "pct_reduction"])
+    df.columns = df.columns.str.replace("LAIV_", "", regex = False)
+    df = df.set_index("particle")
+    
+    fig, ax_base = plt.subplots(figsize = (18, 8))
+    
+    x = np.arange(len(param_ranges))
+    
+    ax_base.set_xticks(x)
+    ax_base.set_xticklabels(df.columns, rotation = 45, ha = "right")
+    
+    ax_base.set_xlim(-0.5, len(param_ranges) - 0.5)
+    ax_base.set_yticks([])
+    
+    axes = []
+    
+    for i, p in enumerate(df.columns):
+
+        ax = ax_base.twinx()
+    
+        # Move axis to the correct x-position
+        ax.spines["right"].set_position(("axes", i / len(param_ranges)))
+    
+        # Hide everything except the spine
+        ax.spines["left"].set_visible(False)
+        ax.spines["top"].set_visible(False)
+        ax.spines["bottom"].set_visible(False)
+    
+        low, high = param_ranges[p]
+        ax.set_ylim(low, high)
+    
+        ax.set_ylabel(p, rotation=90)
+    
+        axes.append(ax)
+    
+    # -------------------------------------------------
+    # Plot each row
+    # -------------------------------------------------
+    
+    for _, row in df.iterrows():
+    
+        for i, p in enumerate(df.columns):
+    
+            axes[i].plot(
+                [x[i]],
+                [row[p]],
+                marker="o",
+                markersize=3,
+                alpha=0.3,
+                color="black"
+            )
+    
+    # -------------------------------------------------
+    # Final touches
+    # -------------------------------------------------
+    
+    ax_base.set_title("Parameters on their native scales (multi-axis plot)")
+    
+    fig.tight_layout()
+    
+    fig.savefig(fig_filepath, dpi=300)
+    plt.close(fig)
+    
+    print("Finished plotting parameter scatter plots")
+
+def plot_selected_betas(output_folder_path, df, selected_parts, col_map, colors):
+    
+    print("Plotting selected betas.\n")
+    
+    fig_filepath = os.path.join(output_folder_path, "betas_plot")
+    
+    t_start = 0
+    t_end = 365
+    nr_days = t_end - t_start
+    
+    t = np.linspace(t_start, t_end, num = nr_days)
+    
+    # title_map = {
+    #     55: "Most negative reduction",
+    #     57: "No reduction",
+    #     67: "Median reduction",
+    #     40: "Maximal reduction"
+    # }
+    
+    title_map = {
+        20: "Most negative reduction",
+        27: "No reduction",
+        55: "Median reduction",
+        141: "Maximal reduction"
+    }
+    
+    fig, axes = plt.subplots(4, 1, figsize=(10, 12), sharex=True)
+    
+    for ax, part in zip(axes, selected_parts):
+        
+        part_params = df.loc[df["particle"] == part].iloc[0]
+        beta_0 = part_params["beta_0"]
+        beta_1 = part_params["beta_1"]
+        shift = part_params["shift"]
+    
+        beta = beta_0 * (1 +  beta_1 * np.sin(( 2 * np.pi * (t - shift) ) / nr_days))
+        
+        color_key = col_map[part]
+        color = colors[color_key]
+        
+        ax.plot(t, beta, linewidth=2, color = color)
+
+        ax.set_ylabel(r"$\beta(t)$")
+    
+        ax.set_title(
+            rf"{title_map[part]}: "
+            rf"$\beta_0={beta_0:.3f}$, "
+            rf"$\beta_1={beta_1:.3f}$, "
+            rf"shift$={shift:.1f}$"
+        )
+    
+    axes[-1].set_xlabel("Time")
+    
+    fig.suptitle(r"Seasonal transmission rate $\beta(t)$", fontsize=16)
+    
+    fig.tight_layout()
+    
+    fig.savefig(fig_filepath)
+    plt.close(fig)
+    
+    print("Finished plotting selected betas.\n")
+
+def plot_beta_vs_peak_time(output_folder_path, filename_full_df, df_parts, thin_space_formatter, scenario_labels, scenarios, param_ranges):
+    
+    print("Plotting beta vs infection incidence peak time.\n")
+    
+    nr_parts = duckdb.sql(f"""
+        SELECT MAX(simulation_index)
+        FROM read_parquet('{filename_full_df}')
+    """).fetchone()[0] + 1
+    
+    nr_runs = duckdb.sql(f"""
+        SELECT MAX(run_nr)
+        FROM read_parquet('{filename_full_df}')
+    """).fetchone()[0] + 1
+    
+    filename_beta_peak = "beta_vs_peak_time"
+    
+    fig_filepath_beta_peak = os.path.join(output_folder_path, filename_beta_peak)
+    
+    nr_rows, nr_cols = 4, 3
+    fig_beta_vs_peak, axes = plt.subplots(nr_rows, nr_cols, figsize=(23, 16), sharex=True)
+    axes = axes.flatten() 
+    
+    ax_map ={
+        "A": axes[1], # 0 and 2 are skipped because the top row only contains the baseline figure
+        "B": axes[3],       
+        "C": axes[4],        
+        "D": axes[5],        
+        "E": axes[6],       
+        "F": axes[7],        
+        "G": axes[8],     
+        "H": axes[9],
+        "J": axes[10],
+        "K": axes[11]
+        }
+    
+    scenario_ids_sql = ", ".join(
+        f"'{scenarios[key][4]}'"
+        for key in ax_map.keys()
+    )
+    
+    df_max = duckdb.sql(f"""
+        WITH daily AS (
+            SELECT
+                simulation_index,
+                scenario,
+                run_nr,
+                horizon,
+                SUM(value) AS daily_value
+            FROM read_parquet('{filename_full_df}')
+            WHERE scenario IN ({scenario_ids_sql})
+            GROUP BY
+                simulation_index,
+                scenario,
+                run_nr,
+                horizon
+        )
+        SELECT
+            simulation_index,
+            scenario,
+            run_nr,
+            arg_max(horizon, daily_value) AS peak_day
+        FROM daily
+        GROUP BY
+            simulation_index,
+            scenario,
+            run_nr
+    """).df()
+    
+    df_max_by_part = {
+        part: group
+        for part, group in df_max.groupby("simulation_index")
+    }
+    
+    fmt_beta_0 = FuncFormatter(lambda x, _: f"{x:.3f}")
+    fmt_beta_1 = FuncFormatter(lambda y, _: f"{y:.3f}")
+    
+    strip_height = 0.16
+    
+    peak_norm = Normalize(vmin = 0, vmax = 365)
+    cmap_peak = "OrRd"
+    
+    beta_0_range = param_ranges["beta_0"]
+    beta_1_range = param_ranges["beta_1"]
+    
+    width_beta_0 = 0.0005
+    width_beta_1 = 0.0005
+    rng = np.random.default_rng(seed=36558)
+    
+    jitter_beta_0 = rng.uniform(-width_beta_0, width_beta_0, nr_runs)
+    jitter_beta_1 = rng.uniform(-width_beta_1, width_beta_1, nr_runs)
+    
+    tick_label_size = 22
+    axis_label_size= 24
+    
+    axes[0].axis("off")  # left of baseline
+    axes[2].axis("off")  # right of baseline
+    
+    for key, ax in ax_map.items():
+        ax.set_xlim(beta_0_range)
+        ax.set_ylim(beta_1_range)
+        
+        ax.xaxis.set_major_formatter(fmt_beta_0)
+        ax.yaxis.set_major_formatter(fmt_beta_1)
+        
+        ax.add_patch(
+            Rectangle(
+                (0, 1.0),
+                1,
+                strip_height,
+                transform=ax.transAxes,
+                facecolor="white",
+                edgecolor="black",
+                linewidth=1.2,
+                clip_on=False
+            )
+        )
+        
+        ax.text(
+            0.5,
+            1.0 + strip_height / 2,
+            scenario_labels[key],
+            transform=ax.transAxes,
+            ha="center",
+            va="center",
+            fontsize=18,
+            fontweight="bold",
+            clip_on=False
+        )
+    
+    for part in range(nr_parts):
+        
+        particle_params = df_parts.loc[df_parts["particle"] == part].drop(columns = ["scenario", "old_particle_nr"]).iloc[0]
+        
+        jittered_beta_0 = particle_params["beta_0"] + jitter_beta_0
+        jittered_beta_1 = particle_params["beta_1"] + jitter_beta_1
+        
+        df_max_part = df_max_by_part.get(part)
+        
+        if df_max_part is None:
+            continue
+        
+        for key, ax in ax_map.items():
+            
+            peak_days = df_max_part[df_max_part["scenario"] == scenarios[key][4]].sort_values("run_nr")
+            
+            ax.scatter(
+                jittered_beta_0,
+                jittered_beta_1,
+                c = peak_days["horizon"].to_numpy(),
+                cmap = cmap_peak,
+                norm = peak_norm,
+                s = 7,
+                alpha = 0.8
+                )
+        if part % 10 == 0:
+            print(f"Particle {part} plotted.\n")
+        
+    for i, ax in enumerate(axes):
+        ax.tick_params(axis = "both", which = "major", labelsize = tick_label_size)
+                    
+        row = i // 3
+        
+        # Determine if this ax is "active" (not turned off)
+        if not ax.has_data():  # axes[0] and axes[2] in top row may be off
+            continue
+        
+        # X-label: only on bottom row
+        if row < nr_rows-1:
+            ax.set_xlabel("")
+        else:
+            ax.set_xlabel(r"$\beta_0$", fontsize = axis_label_size)
+        
+        # Y-label: leftmost active subplot in row
+        leftmost_ax = None
+        for j in range(row*3, (row+1)*3):
+            if axes[j].has_data():
+                leftmost_ax = axes[j]
+                break
+        if ax != leftmost_ax:
+            ax.set_ylabel("")
+        elif row in [1, 3]:
+            ax.set_ylabel("")
+        else:
+            ax.set_ylabel(r"$\beta_1$", fontsize = axis_label_size)
+    
+    sm = plt.cm.ScalarMappable(norm=peak_norm, cmap=cmap_peak)
+    sm.set_array([])       
+    
+    cbar_ax = fig_beta_vs_peak.add_axes([0.95, 0.15, 0.02, 0.7])
+    cbar = fig_beta_vs_peak.colorbar(sm, cax = cbar_ax)
+    
+    cbar.set_label("Peak day", fontsize = axis_label_size)
+    cbar.ax.tick_params(labelsize = tick_label_size)
+    
+    fig_beta_vs_peak.suptitle("Beta vs peak time", fontsize = 28, y = 0.99)
+    fig_beta_vs_peak.tight_layout(rect=[0,0,0.93,0.95])
+    fig_beta_vs_peak.savefig(fig_filepath_beta_peak)
+    plt.close(fig_beta_vs_peak)
+    
+    print("Finished plotting beta vs infection incidence peak time.\n")
+    
+def plot_particles_correlation_enriched(fig_folder_path, df_red):
+    
+    print("Plotting correlation plot.\n")
+    
+    fig_filepath = os.path.join(fig_folder_path, "corr_parts_params_scenarios")
+    
+    df = df_red.drop(columns = ["particle", "old_particle_nr", "scenario", "pct_reduction"])
+    
+    sample_ranges = {
+        "beta_0": [0.037, 0.055],
+        "beta_1": [0.05, 0.3],
+        "shift": [40, 190],
+        "phi_S1": [0.2, 0.8], 
+        "phi_V0": [0.2, 0.8], 
+        "phi_V1": [0.2, 0.8],
+        "frac_S1": [0.2, 0.8],
+        "LAIV_phi_V0_pes": [0, 0.8],
+        "LAIV_phi_V1_pes": [0, 0.8],
+        "LAIV_phi_V0_mid": [0, 0.8],
+        "LAIV_phi_V1_mid": [0, 0.8],
+        "LAIV_phi_V0_opt": [0, 0.8],
+        "LAIV_phi_V1_opt": [0, 0.8]
+        }    
+    
+    phi_subscript_cols = [
+        "LAIV_phi_V0_pes",
+        "LAIV_phi_V1_pes",
+        "LAIV_phi_V0_mid",
+        "LAIV_phi_V1_mid",
+        "LAIV_phi_V0_opt",
+        "LAIV_phi_V1_opt"
+    ]
+    
+    plot_labs = [
+        r"$\beta_0$",
+        r"$\beta_1$", 
+        r"fraction $S^1$", 
+        r"$\phi^{S^1}$", 
+        r"$\phi^{V^0}$",
+        r"$\phi^{V^1}$", 
+        "Shift", 
+        r"$\phi_{0}^{pes}$", 
+        r"$\phi_{1}^{pes}$",
+        r"$\phi_{0}^{mid}$", 
+        r"$\phi_{1}^{mid}$", 
+        r"$\phi_{0}^{opt}$", 
+        r"$\phi_{1}^{opt}$"
+        ]
+    
+    n = len(plot_labs)
+    
+    pct_norm = Normalize(
+        vmin=df_red["pct_reduction"].min(),
+        vmax=df_red["pct_reduction"].max()
+    )
+    
+    cmap_pct = "coolwarm_r"
+    
+    # customise visualisation to make points with negative pct_reduction values stand out
+    pct_red = df_red["pct_reduction"].to_numpy()
+    neg_strength = np.clip(-pct_red, 0, None)
+    if neg_strength.max() > 0:
+        neg_strength = neg_strength / neg_strength.max()
+    dot_sizes = 60 + 80 * neg_strength
+    dot_alphas = 1
     
     with plt.rc_context({
-       "axes.titlesize": 40,
-       "axes.labelsize": 36,
-       "xtick.labelsize": 30,
-       "ytick.labelsize": 30,
-       "legend.fontsize": 36,
-       "legend.title_fontsize": 38,
-       "figure.titlesize": 48
+       "axes.titlesize": 46,
+       "axes.labelsize": 44,
+       "xtick.labelsize": 38,
+       "ytick.labelsize": 38,
+       "legend.fontsize": 40,
+       "legend.title_fontsize": 42,
+       "figure.titlesize": 60
        }):
-    
-        df = pd.DataFrame(full_parts, columns=sample_keys)
-    
-        # Create a boolean mask for accepted vs rejected particles
-        accepted_mask = np.zeros(len(df), dtype=bool)
-        accepted_mask[list_accepted_particles] = True
-        
-        # Add a column for particle status
-        df["status"] = np.where(accepted_mask, "Accepted", "Rejected")
-        
-        plot_labs = [r"$\beta_0$", r"$\beta_1$", r"fraction $S^1$", r"$\phi^{S^1}$", r"$\phi^{V^0}$", r"$\phi^{V^1}$", "Shift"]
-        
-        df_acc = df[df["status"]=="Accepted"]
-        df_rej = df[df["status"]=="Rejected"]
-    
-        n = len(sample_keys)
-        col_acc, col_rej = "royalblue", "silver"
     
         fig, axes = plt.subplots(n, n, figsize=(4*n,4*n))        
         
-        for i, y in enumerate(sample_keys):
-            for j, x in enumerate(sample_keys):
+        fmt_1 = FuncFormatter(lambda x, _: f"{x:.1f}")
+        fmt_2 = FuncFormatter(lambda x, _: f"{x:.2f}")
+        fmt_int = FuncFormatter(lambda x, _: f"{int(x)}")
+        
+        for i, y in enumerate(df):
+            for j, x in enumerate(df):
                 ax = axes[i,j]
                 if i < j:
                     ax.set_visible(False)
                     continue
-                elif i == j:
-                    ax.hist(df_acc[x], bins=20, color=col_acc, alpha=0.6, edgecolor="none")
-                    ax.set_xlim(min(sample_ranges[x]), max(sample_ranges[x]))
-                    # ax.set_visible(False)
+                elif i == j:                    
+                    bins = np.linspace(min(sample_ranges[x]), max(sample_ranges[x]), 21)
+                    ax.hist(
+                        df[x],
+                        bins=bins,
+                        color = "royalblue",
+                        alpha=0.7,
+                        edgecolor="none",
+                        density=True
+                    )
                 else:
-                    ax.scatter(df_rej[x], df_rej[y], color=col_rej, s=15, alpha=0.6, edgecolors='none')
-                    ax.scatter(df_acc[x], df_acc[y], color=col_acc, s=15, alpha=0.8, edgecolors='none')
-    
-                # Axis labels
-                if i<n-1: 
+                    ax.scatter(df[x], df[y], c = df_red["pct_reduction"], cmap = cmap_pct, s = dot_sizes, alpha=dot_alphas, edgecolors='none')
+                
+                ax.set_xlim(min(sample_ranges[x]), max(sample_ranges[x]))
+                
+                if x in phi_subscript_cols:
+                    ax.set_xticks([0.0, 0.4, 0.8])
+                
+                # axes labels
+                if i < n-1: 
                     ax.set_xticklabels([])
                 else: 
                     ax.set_xlabel(plot_labs[j], labelpad=10)
-                    ax.xaxis.set_major_formatter(FuncFormatter(lambda x, _: f"{x:.1f}"))
-                if j>0:
+                    
+                    if i == n-1 and j == 0:
+                        # bottom-left: 2 decimals
+                        ax.xaxis.set_major_formatter(fmt_2)
+                    
+                    elif x == "shift":
+                        ax.xaxis.set_major_formatter(fmt_int)
+                        ax.set_xticks([50, 100, 150])
+                
+                    elif i == n-1 and j == n-1:
+                        # bottom-right: integers only
+                        ax.xaxis.set_major_formatter(fmt_1)
+                
+                    else:
+                        # other bottom-row panels
+                        ax.xaxis.set_major_formatter(fmt_1)
+                
+                ax.tick_params(axis = "x", labelrotation = 55)
+                
+                if j > 0:
                     ax.set_yticklabels([])
                 else: 
                     ax.set_ylabel(plot_labs[i], labelpad=10)
                 
-                # tick label size increase
-                ax.tick_params(axis='x')
-                ax.tick_params(axis='y')
-                
                 ax.spines['top'].set_visible(False)
                 ax.spines['right'].set_visible(False)
+        
     
-        handles = [
-            plt.Line2D([0],[0], marker='o', color='w', markerfacecolor=col_acc, markersize=10, alpha=0.6, label="Accepted"),
-            plt.Line2D([0],[0], marker='o', color='w', markerfacecolor=col_rej, markersize=10, alpha=0.6, label="Rejected")
-        ]
-        fig.legend(handles=handles, loc='upper center', bbox_to_anchor=(0.56,0.93), borderpad =1, frameon=True)
-    
-        plt.suptitle("ABC Particle Sampling — Accepted vs Rejected", x=0.5, y=0.98)
-        # fig.text(0.5, 0.97, "ABC Particle Sampling — Accepted vs Rejected", ha='center', va='top', fontsize=48)
+        ax_bottom_left = axes[n-1, 0]
+        ax_top_left    = axes[0, 0]
+        
+        # create a secondary y-axis
+        ax_top_left_mirror = ax_top_left.twinx()
+        
+        # copy tick locations from bottom-left x-axis
+        ticks = ax_bottom_left.get_xticks()
+        
+        ax_top_left_mirror.set_yticks(ticks)
+        ax_top_left_mirror.set_ylim(ax_bottom_left.get_xlim())
+        
+        # Copy formatter
+        ax_top_left_mirror.yaxis.set_major_formatter(ax_bottom_left.xaxis.get_major_formatter())
+        
+        # Make it look like a left axis
+        ax_top_left_mirror.yaxis.set_label_position("left")
+        ax_top_left_mirror.yaxis.tick_left()
+        
+        # Hide everything except labels
+        ax_top_left_mirror.spines["right"].set_visible(False)
+        ax_top_left_mirror.spines["top"].set_visible(False)
+        ax_top_left_mirror.spines["bottom"].set_visible(False)
+        
+        # Hide the original histogram y-axis labels
+        ax_top_left.tick_params(axis="y", labelleft=False)
+        
+        sm = plt.cm.ScalarMappable(
+            norm=pct_norm,
+            cmap=cmap_pct
+        )
+        sm.set_array([])
+        
+        cbar_left = 0.91
+        cbar_width = 0.035
+        cbar_height = 0.40
+        cbar_bottom = (1 - cbar_height) / 2
+        # Add a colorbar axis in the empty upper triangle
+        # [left, bottom, width, height] in figure coordinates
+        cax = fig.add_axes([cbar_left, cbar_bottom, cbar_width, cbar_height])  
+        
+        cbar = fig.colorbar(sm, cax=cax)
+        cbar.set_label("Percentage reduction in infections", fontsize = 44)
+        cbar.ax.tick_params(labelsize = 38)
+        
+        plt.suptitle("Correlations of parameters — coloured by percentage reduction in infections", x=0.5, y=0.98)
         fig.align_xlabels()
         fig.align_ylabels()
         fig.subplots_adjust(left=0.08, right=0.96, bottom=0.05, top=0.95, hspace=0.35, wspace=0.35)        
-    
         fig.savefig(fig_filepath)
         plt.close(fig)
-
-    print("Particle correlation plot done.\n")
-
+        
+        print("Finished plotting_correlation plot.\n")
 
 def plot_AR_age_strat_swarm(output_folder_path, scenarios, df, colors, col_map, thin_space_formatter, legend_handles, age_list):
     
@@ -266,7 +1066,7 @@ def plot_AR_age_strat_swarm(output_folder_path, scenarios, df, colors, col_map, 
                 y_store_prev[part] = y_store_new[part]
     
         ax.tick_params(axis="both", which="major", labelsize=tick_label_size)
-        ax.set_ylabel(str(age), fontsize=axis_label_size)
+        ax.set_ylabel(str(age), fontsize=axis_label_size, weight = "bold")
         ax.yaxis.set_major_formatter(thin_space_formatter)
         ax.grid(False)
     
@@ -308,9 +1108,7 @@ def plot_AR_swarm(output_folder_path, scenarios, df, colors, col_map, labels, th
     
     figures = [(fig_lines, fig_filepath_AR_swarm_lines)]
     
-    # nr_parts = df["simulation_index"].nunique()
     nr_runs = df["run_nr"].nunique()
-    # nr_points = nr_parts * nr_runs
     
     x_store_prev, y_store_prev = {}, {}
     x_store_new, y_store_new = {}, {}    
@@ -409,7 +1207,8 @@ def plot_spaghetti_per_scenario(output_folder_path, thin_space_formatter, days, 
             transform = ax.transAxes,
             fontsize = 18,
             va = "top",
-            ha = "left"
+            ha = "left",
+            weight = "bold"
             )
     
     # sums infection incidences across all age groups
@@ -463,7 +1262,6 @@ def plot_spaghetti_per_scenario(output_folder_path, thin_space_formatter, days, 
     fig_compare_all.savefig(fig_filepath_spag)
     plt.close(fig_compare_all)
 
-
 def plot_spaghetti_age_strat(output_folder_path, thin_space_formatter, days, df, scenario_nms, scenario_labels, col_map, colors, labels, age_list):
     
     print("Plotting spaghetti plots per age group.\n")
@@ -482,7 +1280,7 @@ def plot_spaghetti_age_strat(output_folder_path, thin_space_formatter, days, df,
     nr_scens = len(scenarios_to_plot)
     nr_runs = df["run_nr"].nunique()
     
-    fig_age_scen_spag, axes = plt.subplots(nr_age, nr_scens, figsize=(24, 32), sharex=True)
+    fig_age_scen_spag, axes = plt.subplots(nr_age, nr_scens, figsize=(24, 32), sharex=True, sharey = "row")
     
     tick_label_size = 22
     legend_size = 22
@@ -502,6 +1300,7 @@ def plot_spaghetti_age_strat(output_folder_path, thin_space_formatter, days, df,
         for age_idx, age in enumerate(age_list):
             ax = axes[age_idx, sc_idx]
             ax.yaxis.set_major_formatter(thin_space_formatter)
+            ax.grid(True)
             
             scen_age_dat = df[ (df["scenario"] == scenario_nms[scen]) & (df["age_group"] == age)]
             
@@ -559,7 +1358,7 @@ if __name__ == "__main__":
     
     start_time = time.time()
     
-    plot_reproduction_calcs()
+    plot_reproduction_calcs(old_vs_new_plots)
     
     end_time = time.time()
     elapsed = end_time - start_time

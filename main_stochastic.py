@@ -199,10 +199,6 @@ def simul(params, states, incidences, rng, new_phis = False, laiv_ages = []):
     # TODO: Check whether the variables new_phis and laiv_ages are still in use. If they are, it should be via either the laiv_phis
     # calculation, or in the forward projection
     
-    # tau, p_ext, nr_days, nr_age, t_iiv_start, t_iiv_end, t_laiv_start, t_laiv_end, compartments, I_comps, N, daily_vacc_admin = itemgetter("tau", 
-    #         "p_ext", "nr_days", "nr_age", "t_iiv_start", "t_iiv_end","t_laiv_start", "t_laiv_end", "compartments", "I_comps", 
-    #         "N", "daily_vacc_admin")(params)
-    
     tau, p_ext, nr_days, nr_age, compartments, daily_vacc_admin = itemgetter("tau", "p_ext", "nr_days", "nr_age", "compartments", "daily_vacc_admin")(params)
     
     # divide each day into subintervals depending on the size of tau, and for each time step calculate all the transitions that day

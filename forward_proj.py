@@ -1,4 +1,5 @@
 # TODO: Check daily admin vacc helper function below to ensure new values are used of LAIV
+# TODO: Update LAIV vaccination timing to not coincide with IIV timing
 
 import numpy as np
 import pandas as pd
@@ -18,7 +19,7 @@ import pyarrow.parquet as pq
 
 plt.close("all")                                                                # Close all figures that may be open in memory
 
-local_parallel = True
+local_parallel = False
 
 def forw_proj(parallel = True, nr_cores = 12):
     
@@ -28,7 +29,7 @@ def forw_proj(parallel = True, nr_cores = 12):
     seed = 790202       # Used whenever multiple runs are done for each combo of particle and scenario
     
     output_figs = False
-    output_dfs = True
+    output_dfs = False
     analyse_ARs = False
     nr_of_parts_to_plot_mutlti_run = 1
     
@@ -41,6 +42,7 @@ def forw_proj(parallel = True, nr_cores = 12):
     particle_addr = os.path.join(curr_dir, "ABC outputs")
     PATH_IN = os.path.join(particle_addr, "accepted_particles.csv")
     SEED_IN = os.path.join(particle_addr, "accepted_seeds.csv")
+    ACC_PES_IN = os.path.join(particle_addr, "acc_pes_phis.csv")
     ACC_MID_IN = os.path.join(particle_addr, "acc_mid_phis.csv")
     ACC_OPT_IN = os.path.join(particle_addr, "acc_opt_phis.csv")
     ACC_INF_INC = os.path.join(particle_addr, "acc_inf_inc.csv")
@@ -50,30 +52,18 @@ def forw_proj(parallel = True, nr_cores = 12):
     part_vars = list(particles.columns)
     nr_parts = len(particles)
     seed_list = np.array(pd.read_csv(SEED_IN, index_col = 0))
+    acc_pes_phis = np.array(pd.read_csv(ACC_PES_IN, index_col = 0))
     acc_mid_phis = np.array(pd.read_csv(ACC_MID_IN, index_col = 0))
     acc_opt_phis = np.array(pd.read_csv(ACC_OPT_IN, index_col = 0))
     baseline_inf_inc = np.array(pd.read_csv(ACC_INF_INC))
     
     os.makedirs(output_folder_path, exist_ok=True)
     
-    # format of scenarios dictionary is key = "name" and value = [scenario type, age groups receiving LAIV, coverage percentages for these groups, scenario name]
-    scenarios = {
-        "A": ["baseline", [], [], "baseline", "Status quo"],
-        "B": ["pessimistic", ["5-11"], [0.4], "pessimistic 5-12", "Pessimistic_LAIV_5-12yo"], 
-        "E": ["pessimistic", ["5-11", "12-17"], [0.4, 0.4], "pessimistic 5-18", "Pessimistic_LAIV_5-18yo"], 
-        "C": ["mid", ["5-11"], [0.6], "mid 5-12", "Mid_LAIV_5-12yo"], 
-        "F": ["mid", ["5-11", "12-17"], [0.6, 0.6], "mid 5-18" ,"Mid_LAIV_5-18yo"], 
-        "D": ["optimistic", ["5-11"], [0.8], "optimistic 5-12", "Optimistic_LAIV_5-12yo"], 
-        "G": ["optimistic", ["5-11", "12-17"], [0.8, 0.8], "optimistic 5-18", "Optimistic_LAIV_5-18yo"],
-        "H": ["mid", ["2-4"], [0.4], "mid 2-5", "Mid_LAIV_2-5yo"], 
-        "J": ["mid", ["2-4", "5-11"], [0.4, 0.6], "mid 2-12", "Mid_LAIV_2-12yo"], 
-        "K": ["mid", ["2-4", "5-11", "12-17"], [0.4, 0.6, 0.6], "mid 2-18", "Mid_LAIV_2-18yo"]
-        }
+    params = sim.init_params()
+    scenarios = params["scenarios"]
     
     short_scenario_names = {k: scenarios[k][3] for k in scenarios}
     scenario_names = {k: scenarios[k][4] for k in scenarios}
-    
-    params = sim.init_params()
     
     # Initialise generic state for simulation
     empty_states = sim.create_states(params) 
@@ -89,13 +79,13 @@ def forw_proj(parallel = True, nr_cores = 12):
     results_list = []
     
     if parallel:
-        full_vars_runs = [(part, seed_list[pos::nr_parts], acc_mid_phis[pos], acc_opt_phis[pos], scenarios, part_vars, params, empty_states, curr_dir) for pos, (idx, part) in enumerate(particles.iterrows())]
+        full_vars_runs = [(part, seed_list[pos::nr_parts], acc_pes_phis[pos], acc_mid_phis[pos], acc_opt_phis[pos], scenarios, part_vars, params, empty_states, curr_dir) for pos, (idx, part) in enumerate(particles.iterrows())]
         with ProcessPoolExecutor(max_workers=nr_cores) as executor:
             results_list = list(tqdm(executor.map(run_particle_wrapper, full_vars_runs, chunksize=1), total = len(full_vars_runs), desc="Still doing some forecasting magic"))
     
     else:
         for pos, (idx, part) in enumerate(particles.iterrows()):
-            results_list.append(run_forward_proj_particle(part, seed_list[pos::nr_parts], acc_mid_phis[pos], acc_opt_phis[pos], scenarios, part_vars, params, empty_states, curr_dir))
+            results_list.append(run_forward_proj_particle(part, seed_list[pos::nr_parts], acc_pes_phis[pos], acc_mid_phis[pos], acc_opt_phis[pos], scenarios, part_vars, params, empty_states, curr_dir))
             
             if idx % 5 == 0 and idx > 0:
                 print(f"Forward simulation of particle {idx} out of {nr_parts} done.")
@@ -202,12 +192,15 @@ def forw_proj(parallel = True, nr_cores = 12):
         # save particles and age group sizes
         particles.to_csv(os.path.join(output_folder_path, "particles.csv"), index=True)
         
+        df_laiv_pes_phis = pd.DataFrame(acc_pes_phis, columns=["LAIV_phi_V0_pes", "LAIV_phi_V1_pes"])
         df_laiv_mid_phis = pd.DataFrame(acc_mid_phis, columns=["LAIV_phi_V0_mid", "LAIV_phi_V1_mid"])
         df_laiv_opt_phis = pd.DataFrame(acc_opt_phis, columns=["LAIV_phi_V0_opt", "LAIV_phi_V1_opt"])
         
+        df_laiv_pes_phis.index = particles.index
         df_laiv_mid_phis.index = particles.index
         df_laiv_opt_phis.index = particles.index
         
+        df_laiv_pes_phis.to_csv(os.path.join(output_folder_path, "LAIV_pes_phis.csv"), index=True)
         df_laiv_mid_phis.to_csv(os.path.join(output_folder_path, "LAIV_mid_phis.csv"), index=True)
         df_laiv_opt_phis.to_csv(os.path.join(output_folder_path, "LAIV_opt_phis.csv"), index=True)
         age_pops_df = pd.DataFrame([N], columns = age_groups)
@@ -393,7 +386,7 @@ def plot_corr_for_AR(fig_folder_path, full_parts, sample_keys, highest_AR, lowes
                             color=colour_map[cat],
                             alpha=0.5 if cat == "Medium" else 0.7,
                             edgecolor="none",
-                            density=True  # optional but often very useful
+                            density=True
                         )
                     
                     ax.set_xlim(min(sample_ranges[x]), max(sample_ranges[x]))
@@ -690,7 +683,6 @@ def plot_AR_tot_inf(output_folder_path, scenarios, highest_AR, lowest_AR, result
     axes[4].plot([], [], color='firebrick', label='Lowest AR')
     axes[4].legend()
     
-    # Optional: common labels
     fig.text(0.5, 0.02, 'Time (days)', ha='center', fontsize=14)
     fig.text(0.02, 0.5, 'Value', va='center', rotation='vertical', fontsize=14)
     fig.suptitle('Infection incidence for highest vs lowest attack rates ', fontsize=16)
@@ -741,7 +733,7 @@ def update_daily_vacc(daily_vacc_admin, target_cover, t_laiv_start, t_laiv_end, 
     
     return daily_vacc_admin
     
-def update_scenario_params(scenario, params, mid_phis, opt_phis):
+def update_scenario_params(scenario, params, pes_phis, mid_phis, opt_phis):
     
     age_groups, laiv_rates, target_cover, t_laiv_start, t_laiv_end, daily_vacc_admin, phi_V0, phi_V1, N  = itemgetter("age_groups", "laiv_rates", "target_cover", "t_laiv_start", "t_laiv_end", 
                                                                                                                    "daily_vacc_admin", "phi_V0", "phi_V1", "N")(params)
@@ -749,7 +741,10 @@ def update_scenario_params(scenario, params, mid_phis, opt_phis):
     laiv_idx = [age_groups.index(age) for age in scenario[1]]
     
     # Change the phi_V0 and pi_V1 values for those groups that receive the LAIV
-    if scenario[0] == "mid":
+    if scenario[0] == "pessimistic":
+        phi_V0[laiv_idx] = pes_phis[0]
+        phi_V1[laiv_idx] = pes_phis[1]
+    elif scenario[0] == "mid":
         phi_V0[laiv_idx] = mid_phis[0]
         phi_V1[laiv_idx] = mid_phis[1]
     elif scenario[0] == "optimistic":
@@ -776,7 +771,7 @@ def update_scenario_params(scenario, params, mid_phis, opt_phis):
     
     return params
 
-def run_forward_proj_particle(part, seed_list, mid_phis, opt_phis, scenarios, part_vars, params, empty_states, curr_dir):
+def run_forward_proj_particle(part, seed_list, pes_phis, mid_phis, opt_phis, scenarios, part_vars, params, empty_states, curr_dir):
     
     part = part.to_numpy()
     
@@ -805,7 +800,7 @@ def run_forward_proj_particle(part, seed_list, mid_phis, opt_phis, scenarios, pa
             params = copy.deepcopy(params_orig)
             
             # Update with scenario-specific values
-            params = update_scenario_params(scenarios[s], params, mid_phis, opt_phis)        
+            params = update_scenario_params(scenarios[s], params, pes_phis, mid_phis, opt_phis)        
             
             states = {k: v.copy() for k, v in empty_states.items()}
             incidences = {k: v.copy() for k, v in empty_states.items() if k not in {"S0", "S1"}}
@@ -828,8 +823,26 @@ def run_forward_proj_particle(part, seed_list, mid_phis, opt_phis, scenarios, pa
         scenario_AR_per_age[s] = total_inf_vacc_unvacc_runs
         full_output[s] = full_runs
         
+        # code to output csv's of daily administered vaccinations per age group (if needed)
+        # output_vaccination_numbers(params, s, scenarios)
+        
     return scenario_inf, scenario_AR_per_age, full_output
 
+
+def output_vaccination_numbers(params, scenario, scenarios_info):
+    
+    curr_dir = os.getcwd().lower()
+    output_folder_path = os.path.join(curr_dir, "Forward projection Temp")
+    
+    daily_vacc_admin, age_groups = itemgetter("daily_vacc_admin", "age_groups")(params)
+    age_groups[1] = "1-<2"
+    
+    scenario_nm = scenarios_info[scenario][3].replace(" ", "_")
+    filename = os.path.join(output_folder_path, f"daily_vacc_per_age_for_{scenario_nm}.csv")
+    
+    daily_vacc_df = pd.DataFrame(daily_vacc_admin, columns = age_groups)
+    daily_vacc_df.to_csv(filename, index = False)    
+    
 
 def run_particle_wrapper(args):
     return run_forward_proj_particle(*args)

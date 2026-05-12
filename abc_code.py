@@ -1,3 +1,4 @@
+# TODO: Replace linspace by arange in the discretisation of beta
 # TODO: Add mean of forecast for each scenario for comparison
 # TODO: Add tracking of vaccination while infectious
 # TODO: Add delay to onset of protection after vaccination
@@ -75,14 +76,14 @@ cores = 12
 def classic_abc(parallel = True, nr_cores = 12):
     
     # Initialise the random number generator
-    seed = 502                                                                  # The first seed is used to run the simulation
-    seed2 = 463                                                                 # The second seed is only used to sample parameters in LHS
+    seed = 502                                                                  # seed is used to run the simulation
+    seed2 = 463                                                                 # seed2 is only used to sample parameters in LHS
     rng = np.random.default_rng(seed)
     rng2 = np.random.default_rng(seed2)
     
     accepted_counter = 0
     
-    nr_particles = 2000                                                          # Number of samples to produce in the LHS
+    nr_particles = 7000                                                          # Number of samples to produce in the LHS
     seed_list = rng.integers(0, 1_000_000_000_000, size=nr_particles * nr_runs_per_part)
     
     current_dir = os.getcwd().lower()  
@@ -179,9 +180,9 @@ def classic_abc(parallel = True, nr_cores = 12):
             else:
                 list_R0_rej.append(res["R0"][0])
 
-        fig_spag_plot = True
+        fig_spag_plot = False
         fig_corr_accepted_particles = False
-        fig_inf_per_comp_for_age_groups = True
+        fig_inf_per_comp_for_age_groups = False
         VE_plots = False
         VE_comparison_plot = False
         boxplot_vacc_post_inf = False
@@ -243,7 +244,7 @@ def list_to_sample_params():
 # -----------------------------
 def update_params(params, particle, keys, it = None):
    # TODO: Check whether the it variable can ever be a non-default value, and if not, remove this
-    nr_age, nr_days, t_start, t_end, shift = itemgetter("nr_age", "nr_days", "t_start", "t_end" ,"shift")(params)
+    nr_age, nr_days, t_start, t_end = itemgetter("nr_age", "nr_days", "t_start", "t_end")(params)
         
     beta_0_val = particle[keys.index("beta_0")]
     beta_1_val = particle[keys.index("beta_1")]
@@ -283,9 +284,9 @@ def update_params(params, particle, keys, it = None):
 # -----------------------------
 def simulate_model(params, states, incidences, current_dir, rng):
     
-    sols, R0_series, incidences, vacc_post_inf = sim.main(params, states, incidences, current_dir, rng)
+    prevs, R0_series, incidences, vacc_post_inf = sim.main(params, states, incidences, current_dir, rng)
     
-    return sols, R0_series, incidences, vacc_post_inf
+    return prevs, R0_series, incidences, vacc_post_inf
 
 # -----------------------------
 # 4) SUMMARY STATISTICS
