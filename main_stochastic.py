@@ -105,13 +105,19 @@ def tau_leap_step(states, incidences, params, day, nr_sub_int, p_ext, rng):
     - The code assumes that the gammas are constant in time and the same across all infectious compartments (though not necessarily across all age groups)
     """
     
-    C, N, beta_full, phi_S1, phi_V0, phi_V1, gamma, compartments, S_comps, I_comps = itemgetter("C", "N", "beta", "phi_S1", "phi_V0", "phi_V1",\
-                                                                                       "gamma", "compartments", "S_comps", "I_comps" )(params)
+    C, N, beta_full, phi_S1, phi_V0, phi_V1, gamma, half_life, compartments, S_comps, I_comps = itemgetter("C", "N", "beta", "phi_S1", "phi_V0", "phi_V1",\
+                                                                                       "gamma", "half_life", "compartments", "S_comps", "I_comps" )(params)
+    
+    Susc0_comps = [c for c in S_comps if "0" in c]
+    Susc1_comps = [c for c in S_comps if "1" in c]
+    
     beta = beta_full[day]
     dt = 1.0 / nr_sub_int
     
     # Current population in each compartment
     curr = current_pop(states, params, day)
+
+    omega = np.log(2) / half_life[0]
     
     # ---- Force of infection ----
     I_total = np.sum([curr[c] for c in I_comps], axis=0)
@@ -120,27 +126,39 @@ def tau_leap_step(states, incidences, params, day, nr_sub_int, p_ext, rng):
         I_div_N = np.divide(I_total, N, out=np.zeros_like(I_total), where=N != 0)
     lambda_i = beta * (C.T @ I_div_N)
     
-    # ---- Binomial sampling for infections ----    
-    infs = rng.binomial(np.array([curr[c] for c in S_comps]).astype(int), 
-                        np.minimum(
-                            np.vstack([
-                                lambda_i + p_ext, 
-                                lambda_i * phi_S1 + p_ext, 
-                                lambda_i * phi_V0 + p_ext, 
-                                lambda_i * phi_V1 + p_ext
-                                ]) * dt, 
-                            1
-                            )
-                        )
+    # ---- Binomial sampling for infections from S0 and V0 ----    
+    n_from_no_prior_immun = np.array([curr[c] for c in Susc0_comps]).astype(int)
+    p_inf_no_prior_immun = np.array([
+        1 - np.exp(-(lambda_i + p_ext) * dt),
+        1 - np.exp(-(lambda_i + p_ext) * phi_V0 * dt)
+        ])
+    infs_no_prior_immun = rng.binomial(n_from_no_prior_immun, p_inf_no_prior_immun)
+    
+    # ---- Binomial sampling for infections from S1 and V1 ----    
+    n_from_prior_immun = np.array([curr[c] for c in Susc1_comps]).astype(int)
+    
+    inf_rate = np.array([
+        (lambda_i + p_ext) * phi_S1, 
+        (lambda_i + p_ext) * phi_V1
+        ])
+    
+    total_rate = inf_rate + omega
+    if np.any(total_rate == 0):
+        raise ValueError("Error: rates for infections and / or waning cannot be zero!")
+        
+    p_leave = 1 - np.exp(-total_rate * dt)
+    nrs_leave = rng.binomial(n_from_prior_immun, p_leave)
+    
+    infs_with_prior_immun = rng.binomial(nrs_leave, inf_rate / total_rate)
+    nrs_wane = nrs_leave - infs_with_prior_immun
     
     # ---- Binomial sampling for recoveries ----    
-    rec = rng.binomial(np.array([curr[c] for c in I_comps]).astype(int), np.vstack( [np.minimum(gamma * dt, 1)] * len(I_comps)))
+    p_rec = 1 - np.exp(-gamma[0] * dt)
+    rec = rng.binomial(np.array([curr[c] for c in I_comps]).astype(int), p_rec)
 
     # ---- Update compartments ----
-    curr["S0"], curr["I_S0"] = curr["S0"] - infs[0], curr["I_S0"] + infs[0]
-    curr["S1"], curr["I_S1"] = curr["S1"] - infs[1], curr["I_S1"] + infs[1]
-    curr["V0"], curr["I_V0"] = curr["V0"] - infs[2], curr["I_V0"] + infs[2]
-    curr["V1"], curr["I_V1"] = curr["V1"] - infs[3], curr["I_V1"] + infs[3]
+    curr["S0"], curr["I_S0"] = curr["S0"] - infs_no_prior_immun[0], curr["I_S0"] + infs_no_prior_immun[0]
+    curr["V0"], curr["I_V0"] = curr["V0"] - infs_no_prior_immun[1], curr["I_V0"] + infs_no_prior_immun[1]
     
     curr["I_S0"], curr["R_S"] = curr["I_S0"] - rec[0], curr["R_S"] + rec[0]
     curr["I_S1"], curr["R_S"] = curr["I_S1"] - rec[1], curr["R_S"] + rec[1]
@@ -148,19 +166,21 @@ def tau_leap_step(states, incidences, params, day, nr_sub_int, p_ext, rng):
     curr["I_V0"], curr["R_V"] = curr["I_V0"] - rec[2], curr["R_V"] + rec[2]
     curr["I_V1"], curr["R_V"] = curr["I_V1"] - rec[3], curr["R_V"] + rec[3]
     
-    # Add today's infections and recoveries to the daily incidences overview
-    for c in I_comps:
-        incidences[c][:, day] += infs[S_comps.index(c[2:]) , :]
+    curr["S1"], curr["I_S1"], curr["S0"] = curr["S1"] - infs_with_prior_immun[0] - nrs_wane[0], curr["I_S1"] + infs_with_prior_immun[0], curr["S0"] + nrs_wane[0]
+    curr["V1"], curr["I_V1"], curr["V0"] = curr["V1"] - infs_with_prior_immun[1] - nrs_wane[1], curr["I_V1"] + infs_with_prior_immun[1], curr["V0"] + nrs_wane[1]
     
-        # The third character in the I_comps strings is either an S or a V.
-        # Based on this, allocate the recovered incidences to the correct 
-        # recovered state incidence overview
-        if c[2] == "S":
-            incidences["R_S"][:, day] += rec[I_comps.index(c) ,:]
-        elif c[2] == "V":
-            incidences["R_V"][:, day] += rec[I_comps.index(c) ,:]
-        else:
-            raise ValueError("Error: One of the I states seems to not have an S or a V as its third character in its name!")
+    # Add today's infections and recoveries to the daily incidences overview
+    incidences["S0"][:, day] += nrs_wane[0]
+    incidences["V0"][:, day] += nrs_wane[1]
+    
+    incidences["I_S0"][:, day] += infs_no_prior_immun[0]
+    incidences["I_V0"][:, day] += infs_no_prior_immun[1]
+    
+    incidences["I_S1"][:, day] += infs_with_prior_immun[0]
+    incidences["I_V1"][:, day] += infs_with_prior_immun[1]
+    
+    incidences["R_S"][:, day] += rec[0] + rec[1]
+    incidences["R_V"][:, day] += rec[2] + rec[3]
     
     # Write back updated values to states at current day
     for c in compartments:
@@ -195,6 +215,23 @@ def compute_R0(params):
     
     return R0
 
+def wane_pre_exist_immun(states, incidences, params, day, rng):
+    
+    omega = np.log(2) / params["half_life"]
+    p_daily_wane = 1 - np.exp(-omega)
+    
+    curr = current_pop(states, params, day)
+    wane_S1_to_S0 = rng.binomial(curr["S1"].astype(int), p_daily_wane)
+    wane_V1_to_V0 = rng.binomial(curr["V1"].astype(int), p_daily_wane)
+    
+    states["S1"][:, day] -= wane_S1_to_S0
+    states["S0"][:, day] += wane_S1_to_S0
+    states["V1"][:, day] -= wane_V1_to_V0
+    states["V0"][:, day] += wane_V1_to_V0
+    
+    incidences["S0"][:, day] += wane_S1_to_S0
+    incidences["V0"][:, day] += wane_V1_to_V0
+    
 def simul(params, states, incidences, rng, new_phis = False, laiv_ages = []):
     # TODO: Check whether the variables new_phis and laiv_ages are still in use. If they are, it should be via either the laiv_phis
     # calculation, or in the forward projection
@@ -225,10 +262,9 @@ def simul(params, states, incidences, rng, new_phis = False, laiv_ages = []):
         # First administer the day's vaccinations at the start of the day
 
         admin_today = daily_vacc_admin[day].astype(int)
-        
         if np.sum(admin_today) > 0:
             vacc_post_inf = administer_vacc(states, incidences, params, day, admin_today, vacc_post_inf, new_phis = new_phis, laiv_ages = laiv_ages)
-            
+        
         # divide each day into 1/tau subintervals, and simulate transitions within it
         for sub_int in range(nr_sub_int):
             

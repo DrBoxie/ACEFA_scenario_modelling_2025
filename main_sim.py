@@ -106,11 +106,12 @@ def init_params():
         raise ValueError("Error: Beta is not allowed to be negative!")
     
     base_phi = np.full(nr_age, 1)
-    phi_S1 = np.full(nr_age, 0.7)
-    phi_V0 = np.full(nr_age, 0.5)
-    phi_V1 = np.full(nr_age, 0.3)
+    phi_S1 = np.full(nr_age, 0.7)                                               # dummy value to be replaced in ABC / LHS
+    phi_V0 = np.full(nr_age, 0.5)                                               # dummy value to be replaced in ABC / LHS
+    phi_V1 = np.full(nr_age, 0.3)                                               # dummy value to be replaced in ABC / LHS
+    half_life = np.full(nr_age, 150)                                            # dummy value to be replaced in ABC / LHS
     
-    gamma_i = np.full(nr_age, 1/3)
+    gamma = np.full(nr_age, 1/3)
 
     target_cover = np.array([0.15, 0.15, 0.15, 0.10, 0.10, 0.20, 0.55, 0.55])         # target vaccination coverage in each age group
     
@@ -177,7 +178,8 @@ def init_params():
               "phi_S1": phi_S1,
               "phi_V0": phi_V0,
               "phi_V1": phi_V1,
-              "gamma": gamma_i,
+              "gamma": gamma,
+              "half_life": half_life,
               "daily_vacc_admin": daily_vacc_admin,
               "p_ext": p_ext,
               "shift": shift,

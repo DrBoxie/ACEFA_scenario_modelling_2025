@@ -64,10 +64,10 @@ from tqdm import tqdm
 import time
 import gzip
 
-ABC_output_results = True                                                       # Suppress outputting figures and dataframes for ABC (if False) for quicker runs
+ABC_output_results = False                                                       # Suppress outputting figures and dataframes for ABC (if False) for quicker runs
 pickle_dump = False
 
-nr_runs_per_part = 10
+nr_runs_per_part = 50
 accept_perc = 0.9
 
 paral = True
@@ -180,13 +180,13 @@ def classic_abc(parallel = True, nr_cores = 12):
             else:
                 list_R0_rej.append(res["R0"][0])
 
-        fig_spag_plot = False
-        fig_corr_accepted_particles = False
-        fig_inf_per_comp_for_age_groups = False
-        VE_plots = False
-        VE_comparison_plot = False
-        boxplot_vacc_post_inf = False
-        R0_plot = False
+        fig_spag_plot = True
+        fig_corr_accepted_particles = True
+        fig_inf_per_comp_for_age_groups = True
+        VE_plots = True
+        VE_comparison_plot = True
+        boxplot_vacc_post_inf = True
+        R0_plot = True
         
         plt_crt.outputs(list_prev, list_inc, list_AR, list_VE, list_VE_alt, params, list_accepted_particles, list_vacc_post_inf, peak_time_range, 
                         AR_range, VE_range, sample_array, sample_keys, fig_spag_plot, fig_inf_per_comp_for_age_groups, VE_comparison_plot,
@@ -226,6 +226,8 @@ def list_to_sample_params():
     phi_V0_range = [0.2, 0.8]
     phi_V1_range = [0.2, 0.8]
     frac_S1_range = [0.2, 0.8]
+    half_life = [90, 365]    
+    # half_life = [365000, 365250]    
     
     params_to_sample = {
         "beta_0": beta_0_range,
@@ -234,7 +236,8 @@ def list_to_sample_params():
         "phi_S1": phi_S1_range, 
         "phi_V0": phi_V0_range, 
         "phi_V1": phi_V1_range,
-        "frac_S1": frac_S1_range
+        "frac_S1": frac_S1_range,
+        "half_life": half_life 
         }    
     
     return params_to_sample
@@ -264,13 +267,16 @@ def update_params(params, particle, keys, it = None):
     phi_V0 = np.full(nr_age, particle[keys.index("phi_V0")])
     phi_V1 = np.full(nr_age, particle[keys.index("phi_V1")])
     
+    half_life = np.full(nr_age, particle[keys.index("half_life")])
+    
     sample = {
         "beta": beta,
         "phi_S1": phi_S1,
         "phi_V0": phi_V0,
         "phi_V1": phi_V1,
         "frac_S1": frac_S1,
-        "shift": shift
+        "shift": shift,
+        "half_life": half_life
         }
     
     # The generic values for the relevant parameters need to be overwritten by their values in the particle, 
@@ -366,7 +372,8 @@ def run_particle(idx, particle, seed_list, common_var_all_runs, parallel, accept
         
         # Copy states and params for this particle
         states = {k: v.copy() for k, v in empty_states.items()}
-        incidences = {k: v.copy() for k, v in empty_states.items() if k not in {"S0", "S1"}}
+        incidences = {k: v.copy() for k, v in empty_states.items() if k not in {"S1"}}
+        # incidences = {k: v.copy() for k, v in empty_states.items() if k not in {"S0", "S1"}}
     
         # Run simulation
         prevalences, R0_series, incidences, vacc_post_inf = simulate_model(params_run, states, incidences, current_dir, rng)

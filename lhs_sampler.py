@@ -34,7 +34,7 @@ def lhs(params, N, rng = None):
     samples = np.zeros((N, d))
     
     for j, name in enumerate(param_names):
-        if name not in ["phi_V0", "phi_S1"]:                                                    # Separate approach for phi_V0 and phi_S1 to ensure ordering of phi values: phi_V1 <= phi_V0 and phi_V1 <= phi_S1
+        if name not in ["phi_V0", "phi_S1"]:                                    # Separate approach for phi_V0 and phi_S1 to ensure ordering of phi values: phi_V1 <= phi_V0 and phi_V1 <= phi_S1
             low, high = params[name]
             # Sample one point per interval            
         else:
