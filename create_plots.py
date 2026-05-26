@@ -482,8 +482,8 @@ def outputs(prevalences, incidences, AR_list, VE_list, VE_alt_list, params, list
             ax_spag_inf_inc.plot(days, total_inf, color=color, linewidth=linewidth, alpha=alpha, label=label)
             ax_spag_cumul_inf.plot(days, cumul_inf, color=color, linewidth=linewidth, alpha=alpha, label=label)
         
-        style_spaghetti_plot(params, ax_spag_inf_inc, False, fig_spag_inf_inc, peak_time_range, t_start, t_end, thin_space_formatter, title=f"Infection incidence\n({len(list_accepted_particles)} out of {len(incidences)} particles accepted)", ylab = "Daily Infection Incidence", vert_or_horiz = "vert")
-        style_spaghetti_plot(params, ax_spag_cumul_inf, True, fig_spag_cumul_inf, AR_range, t_start, t_end, thin_space_formatter, title=f"Cumulative infection incidence\n({len(list_accepted_particles)} out of {len(incidences)} particles accepted)", ylab = "Cumulative Infection Incidence", vert_or_horiz = "horiz")
+        style_spaghetti_plot(params, ax_spag_inf_inc, False, fig_spag_inf_inc, peak_time_range, t_start, t_end, thin_space_formatter, title=f"Infection incidence\n({len(list_accepted_particles)} out of {len(incidences):,} particles accepted)", ylab = "Daily Infection Incidence", vert_or_horiz = "vert")
+        style_spaghetti_plot(params, ax_spag_cumul_inf, True, fig_spag_cumul_inf, AR_range, t_start, t_end, thin_space_formatter, title=f"Cumulative infection incidence\n({len(list_accepted_particles)} out of {len(incidences):,} particles accepted)", ylab = "Cumulative Infection Incidence", vert_or_horiz = "horiz")
         
         fig_spag_inf_inc.savefig(fig_filepath_inf_inc)
         fig_spag_cumul_inf.savefig(fig_filepath_cumul_inf)

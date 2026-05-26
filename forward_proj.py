@@ -712,6 +712,8 @@ def update_generic(params, particle, keys):
     phi_V0 = np.full(nr_age, particle[keys.index("phi_V0")])
     phi_V1 = np.full(nr_age, particle[keys.index("phi_V1")])
     
+    half_life = np.full(nr_age, particle[keys.index("half_life")])
+    
     updated_vals = {
         "beta": beta,
         "phi_S1": phi_S1,
@@ -719,6 +721,7 @@ def update_generic(params, particle, keys):
         "phi_V0": phi_V0,
         "phi_V1": phi_V1,
         "shift": shift,
+        "half_life": half_life
         }
     
     # The generic values for the relevant parameters need to be overwritten by their values in the particle, 

@@ -85,7 +85,7 @@ def classic_abc(parallel = True, nr_cores = 12):
     
     accepted_counter = 0
     
-    nr_particles = 5000                                                          # Number of samples to produce in the LHS
+    nr_particles = 1000                                                          # Number of samples to produce in the LHS
     seed_list = rng.integers(0, 1_000_000_000_000, size=nr_particles * nr_runs_per_part)
     
     if platform.system() == "Windows":
@@ -234,8 +234,8 @@ def list_to_sample_params():
     phi_V0_range = [0.2, 0.8]
     phi_V1_range = [0.2, 0.8]
     frac_S1_range = [0.2, 0.8]
-    half_life = [90, 365]    
-    # half_life = [365000, 365250]    
+    # half_life = [90, 365]    
+    half_life = [365000, 365250]    
     
     params_to_sample = {
         "beta_0": beta_0_range,

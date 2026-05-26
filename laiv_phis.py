@@ -12,6 +12,7 @@ import time
 from concurrent.futures import ProcessPoolExecutor
 from tqdm import tqdm
 import copy
+import platform
 
 new_phis = True
 local_parallel = True
@@ -29,7 +30,7 @@ def laiv_phis(new_phis = True, parallel = True, nr_cores = 12):
     make_figs = False
 
     VE_accept_range = {
-        "pessimistic": [0.38, 0.50],                                                # same as baseline, so no need to run separately
+        "pessimistic": [0.38, 0.50],
         "mid" : [0.44, 0.69],
         "optimistic": [0.63, 0.88]
         }
@@ -39,7 +40,11 @@ def laiv_phis(new_phis = True, parallel = True, nr_cores = 12):
     phi_V0_range = [0, 0.8]
     phi_V1_range = [0, 0.8]
 
-    curr_dir = os.getcwd().lower()
+    if platform.system() == "Windows":
+        curr_dir = os.getcwd().lower()
+    else:
+        curr_dir = os.getcwd()
+        
     particle_addr = os.path.join(curr_dir, "ABC outputs")
     PATH_IN = os.path.join(particle_addr, "accepted_particles.csv")
     SEED_IN = os.path.join(particle_addr, "accepted_seeds.csv")
@@ -57,7 +62,6 @@ def laiv_phis(new_phis = True, parallel = True, nr_cores = 12):
     particles_df = pd.read_csv(PATH_IN, index_col = 0)
     particles, part_vars = particles_df.to_numpy(), list(particles_df.columns)
     
-    # part_vars = list(particles.columns)
     nr_parts = len(particles)
     seed_list = np.array(pd.read_csv(SEED_IN, index_col = 0))
     
@@ -105,6 +109,7 @@ def laiv_phis(new_phis = True, parallel = True, nr_cores = 12):
     
     if make_figs:
         print("Plotting figures.")
+        # TODO: figure plotting not been updated and may be broken
         VE_plots(list_scenarios, list_phis, list_accepted, VE_fig_out_addr)
     
     df_acc_pes_phis = pd.DataFrame(acc_pes_phi, columns=["phi_V0", "phi_V1"], index = particles_df.index)
@@ -198,7 +203,7 @@ def individual_part_phi_calc(idx, part, run_seed, phi_seeds, params, part_vars, 
                 raise ValueError("Error: Phi's have to be between 0 and 1!")
             
             states = {k: v.copy() for k, v in empty_states.items()}
-            incidences = {k: v.copy() for k, v in empty_states.items() if k not in {"S0", "S1"}}
+            incidences = {k: v.copy() for k, v in empty_states.items() if k not in {"S1"}}
             params_run = copy.deepcopy(params)
             
             # Initialise the seed for each iteration
