@@ -524,7 +524,7 @@ def outputs(prevalences, incidences, AR_list, VE_list, VE_alt_list, params, list
             # Add a column for particle status
             df["status"] = np.where(accepted_mask, "Accepted", "Rejected")
             
-            plot_labs = [r"$\beta_0$", r"$\beta_1$", r"fraction $S^1$", r"$\phi^{S^1}$", r"$\phi^{V^0}$", r"$\phi^{V^1}$", "Shift"]
+            plot_labs = [r"$\beta_0$", r"$\beta_1$", r"fraction $S^1$",r"$T_{1/2}$", r"$\phi^{S^1}$", r"$\phi^{V^0}$", r"$\phi^{V^1}$", "Shift"]
             
             df_acc = df[df["status"]=="Accepted"]
             df_rej = df[df["status"]=="Rejected"]
@@ -620,7 +620,7 @@ def outputs(prevalences, incidences, AR_list, VE_list, VE_alt_list, params, list
     if fig_VE_plots:
         start_VE_fig = time.time()
         VE_plots(VE_list, VE_range, list_accepted_particles, fig_folder_path)
-        print("VE boxplot done.\n")
+        print("\nVE boxplot done.\n")
         
         end_VE_fig = time.time()
         elapsed = end_VE_fig - start_VE_fig

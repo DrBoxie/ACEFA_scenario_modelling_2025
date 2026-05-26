@@ -63,12 +63,14 @@ from concurrent.futures import ProcessPoolExecutor
 from tqdm import tqdm
 import time
 import gzip
+import platform
 
-ABC_output_results = False                                                       # Suppress outputting figures and dataframes for ABC (if False) for quicker runs
+ABC_output_results = True                                                       # Suppress outputting figures and dataframes for ABC (if False) for quicker runs
 pickle_dump = False
 
-nr_runs_per_part = 50
+nr_runs_per_part = 10
 accept_perc = 0.9
+nr_allowed_rejected = nr_runs_per_part - int(np.ceil(nr_runs_per_part * accept_perc))
 
 paral = True
 cores = 12
@@ -83,10 +85,14 @@ def classic_abc(parallel = True, nr_cores = 12):
     
     accepted_counter = 0
     
-    nr_particles = 7000                                                          # Number of samples to produce in the LHS
+    nr_particles = 5000                                                          # Number of samples to produce in the LHS
     seed_list = rng.integers(0, 1_000_000_000_000, size=nr_particles * nr_runs_per_part)
     
-    current_dir = os.getcwd().lower()  
+    if platform.system() == "Windows":
+        current_dir = os.getcwd().lower()
+    else:
+        current_dir = os.getcwd()
+        
     fig_folder_path = os.path.join(current_dir, "ABC outputs")
     os.makedirs(fig_folder_path, exist_ok=True)    
     
@@ -121,7 +127,8 @@ def classic_abc(parallel = True, nr_cores = 12):
         "peak_time_range": peak_time_range,
         "AR_range": AR_range,
         "VE_range": VE_range,
-        "accept_perc": accept_perc
+        "accept_perc": accept_perc,
+        "nr_allowed_rejected": nr_allowed_rejected
         }
     
     results_list = []
@@ -167,6 +174,7 @@ def classic_abc(parallel = True, nr_cores = 12):
         list_R0_acc = []
         list_R0_rej = []
         
+        # the [0] in the lines below is to select only the first run for each particle even for multi-run simulations
         for res in results_list:
             list_prev.append(res["prevalences"][0])
             list_inc.append(res["incidences"][0])
@@ -180,18 +188,6 @@ def classic_abc(parallel = True, nr_cores = 12):
             else:
                 list_R0_rej.append(res["R0"][0])
 
-        fig_spag_plot = True
-        fig_corr_accepted_particles = True
-        fig_inf_per_comp_for_age_groups = True
-        VE_plots = True
-        VE_comparison_plot = True
-        boxplot_vacc_post_inf = True
-        R0_plot = True
-        
-        plt_crt.outputs(list_prev, list_inc, list_AR, list_VE, list_VE_alt, params, list_accepted_particles, list_vacc_post_inf, peak_time_range, 
-                        AR_range, VE_range, sample_array, sample_keys, fig_spag_plot, fig_inf_per_comp_for_age_groups, VE_comparison_plot,
-                        fig_corr_accepted_particles, VE_plots, boxplot_vacc_post_inf, params_to_sample, fig_folder_path, parallel, nr_cores, R0_plot, list_R0_acc, list_R0_rej)
-        
         print("Saving accepted particles.\n")
         acc_part_df = pd.DataFrame(sample_array[list_accepted_particles], columns=sample_keys, index = list_accepted_particles)
         acc_part_df.to_csv(os.path.join(fig_folder_path, "accepted_particles.csv"), index=True)
@@ -209,6 +205,18 @@ def classic_abc(parallel = True, nr_cores = 12):
             inf_inc_accepted[:, idx] = np.sum([np.sum(list_inc[part][c], axis=0) for c in I_comps], axis=0)
         acc_inf_inc_df = pd.DataFrame(inf_inc_accepted)
         acc_inf_inc_df.to_csv(os.path.join(fig_folder_path, "acc_inf_inc.csv"), index=False)
+
+        fig_spag_plot = True
+        fig_corr_accepted_particles = True
+        fig_inf_per_comp_for_age_groups = True
+        VE_plots = True
+        VE_comparison_plot = False
+        boxplot_vacc_post_inf = True
+        R0_plot = True
+        
+        plt_crt.outputs(list_prev, list_inc, list_AR, list_VE, list_VE_alt, params, list_accepted_particles, list_vacc_post_inf, peak_time_range, 
+                        AR_range, VE_range, sample_array, sample_keys, fig_spag_plot, fig_inf_per_comp_for_age_groups, VE_comparison_plot,
+                        fig_corr_accepted_particles, VE_plots, boxplot_vacc_post_inf, params_to_sample, fig_folder_path, parallel, nr_cores, R0_plot, list_R0_acc, list_R0_rej)
         
 def list_to_sample_params():    
     
@@ -349,8 +357,8 @@ def compute_summary(prev, inc, params, peak_time_range, AR_range, VE_range, vacc
 
 def run_particle(idx, particle, seed_list, common_var_all_runs, parallel, accepted_counter = 0):
     
-    nr_particles, empty_states, params, current_dir, sample_keys, peak_time_range, AR_range, VE_range, accept_perc = itemgetter("nr_particles","empty_states", 
-                                "params", "current_dir", "sample_keys", "peak_time_range", "AR_range", "VE_range", "accept_perc")(common_var_all_runs)    
+    nr_particles, empty_states, params, current_dir, sample_keys, peak_time_range, AR_range, VE_range,nr_allowed_rejected = itemgetter("nr_particles","empty_states", 
+                                "params", "current_dir", "sample_keys", "peak_time_range", "AR_range", "VE_range", "nr_allowed_rejected")(common_var_all_runs)    
     
     acc_list = []
     AR_list = []
@@ -365,6 +373,8 @@ def run_particle(idx, particle, seed_list, common_var_all_runs, parallel, accept
 
     # Update parameters for this particle
     params_run = update_params(params_run, particle, sample_keys, idx)
+    
+    accepted_part = True
     
     for it, seed in enumerate(seed_list):
         
@@ -389,12 +399,11 @@ def run_particle(idx, particle, seed_list, common_var_all_runs, parallel, accept
         inc_list.append(incidences)
         R0_list.append(R0_series[0][0])
         vacc_post_inf_list.append(vacc_post_inf)
-     
-    perc_acc = sum(acc_list) /  len(seed_list)   
-    if perc_acc >= accept_perc:
-        accepted_part = True
-    else:
-        accepted_part = False
+        
+        nr_rejected = acc_list.count(False)
+        if nr_rejected > nr_allowed_rejected:
+            accepted_part = False
+            break
     
     if (idx+1) % 50 == 0 and not parallel:
         print(f"Percentage of particles done: {(idx+1)*100 / nr_particles:.0f}%")
