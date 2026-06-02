@@ -37,7 +37,7 @@ def style_spaghetti_plot(params, ax, cumul = False, fig = None, accept_rng = Non
     fig.tight_layout()
 
 def VE_plots(VE_list, VE_range, list_accepted_particles, fig_folder_path):
-
+    
     fig_filepath_VE_bp = os.path.join(fig_folder_path, "VE_boxplot")
     
     VEs = np.array(VE_list)
@@ -59,7 +59,6 @@ def VE_plots(VE_list, VE_range, list_accepted_particles, fig_folder_path):
     
     for patch, color in zip(bp['boxes'], colors):
         patch.set_facecolor(color)
-        # patch.set_zorder(2)
     
     ax.axhspan(accept_lower, accept_upper, color='orange', alpha=0.4, zorder=0, label='Acceptance range')
     
@@ -102,7 +101,6 @@ def vacc_post_inf_plot(list_vacc_post_inf, list_accepted_particles, fig_folder_p
     
     for patch, color in zip(bp['boxes'], colors):
         patch.set_facecolor(color)
-        # patch.set_zorder(2)
     
     rng = np.random.default_rng(246)                                            # rng only used to create horizontal jitter on the dots
     for i, y in enumerate(data_to_plot):
@@ -661,6 +659,7 @@ def outputs(prevalences, incidences, AR_list, VE_list, VE_alt_list, params, list
         print(f"Boxplot of R0 took {elapsed:.3f} seconds to produce.\n")
         
     if selected_spag_plot:
+        # used to plot specific particle spaghetti plots rather than all of them, which is done in plot_selected_particles.py
         start_selected_spag_plot = time.time()
         
         nr_parts = len(list_accepted_particles)
@@ -671,7 +670,6 @@ def outputs(prevalences, incidences, AR_list, VE_list, VE_alt_list, params, list
         end_selected_spag_plot = time.time()
         elapsed = end_selected_spag_plot - start_selected_spag_plot
         print(f"Selected spaghetti plot took {elapsed:.3f} seconds to produce.\n")
-    
     
 if __name__ == "__main__":
     

@@ -2,17 +2,11 @@
 # TODO: Add mean of forecast for each scenario for comparison
 # TODO: Add tracking of vaccination while infectious
 # TODO: Add delay to onset of protection after vaccination
-# TODO: Test impact of adding delay to protection onset from vaccination
-# TODO: Add R_eff calculation and plot R_eff as a function of time
-
-# TODO: Potentially add age-dependent VE calculation
-# TODO: Separate all helper functions into separate .py file
 
 # =============================================================================
 # The full execution pipeline for the code is:
 #    1. Run this file, and adapt the following variables as needed:
 #       - ABC_output_results:       activate / suppress output of dataframes and plots of abc runs
-#       - pickle_dump:              activate / suppress output of pickle file with full states of runs
 #       - seed:                     only used to generate the seed list which goes into the code of each run
 #       - seed2:
 #       - parallel:                 True = parallel process, False = sequential process
@@ -27,6 +21,7 @@
 #       - beta_0_range
 #       - beta_1_range
 #       - shift
+#       - half-life
 #       - phi_S1_range
 #       - phi_V0_range
 #       - phi_V1_range
@@ -57,16 +52,13 @@ import create_plots as plt_crt
 # import laiv_phis as laiv
 # import forward_proj as forw
 import copy
-import pickle
 from operator import itemgetter
 from concurrent.futures import ProcessPoolExecutor
 from tqdm import tqdm
 import time
-import gzip
 import platform
 
 ABC_output_results = True                                                       # Suppress outputting figures and dataframes for ABC (if False) for quicker runs
-pickle_dump = False
 
 nr_runs_per_part = 10
 accept_perc = 0.9
@@ -85,8 +77,9 @@ def classic_abc(parallel = True, nr_cores = 12):
     
     accepted_counter = 0
     
-    nr_particles = 1000                                                          # Number of samples to produce in the LHS
-    seed_list = rng.integers(0, 1_000_000_000_000, size=nr_particles * nr_runs_per_part)
+    nr_particles = 100_000                                                          # Number of samples to produce in the LHS
+    seed_list = rng.integers(0, 1_000_000_000_000,                              # one seed value per unique combination of particle and run nr of that particle
+                             size=nr_particles * nr_runs_per_part) 
     
     if platform.system() == "Windows":
         current_dir = os.getcwd().lower()
@@ -117,7 +110,6 @@ def classic_abc(parallel = True, nr_cores = 12):
     
     runs = [(idx, particle, seed_list[idx : nr_particles * nr_runs_per_part : nr_particles]) for idx, particle in enumerate(sample_array)]
     
-    # common_var_all_runs = (nr_particles, empty_states, params, current_dir, sample_keys, peak_time_range, AR_range, VE_range)
     common_var_all_runs = {
         "nr_particles": nr_particles,
         "empty_states": empty_states,
@@ -159,10 +151,6 @@ def classic_abc(parallel = True, nr_cores = 12):
     # -----------------------------
     
     if ABC_output_results:
-        
-        if pickle_dump:
-            with gzip.open(os.path.join(fig_folder_path, "abc_runs.pkl"), "wb") as f:
-                pickle.dump(results_list, f)
 
         list_accepted_particles = []
         list_prev = []
@@ -219,7 +207,7 @@ def classic_abc(parallel = True, nr_cores = 12):
                         fig_corr_accepted_particles, VE_plots, boxplot_vacc_post_inf, params_to_sample, fig_folder_path, parallel, nr_cores, R0_plot, list_R0_acc, list_R0_rej)
         
 def list_to_sample_params():    
-    
+   
 # =============================================================================
 # List the parameters to sample via LHS, with their upper and lower bounds
 # These replace the default ones given in the regular initialisation of the
@@ -234,8 +222,8 @@ def list_to_sample_params():
     phi_V0_range = [0.2, 0.8]
     phi_V1_range = [0.2, 0.8]
     frac_S1_range = [0.2, 0.8]
-    # half_life = [90, 365]    
-    half_life = [365000, 365250]    
+    half_life = [90, 365]    
+    # half_life = [365000, 365250]                                              # Only used for testing purposes
     
     params_to_sample = {
         "beta_0": beta_0_range,
@@ -296,9 +284,9 @@ def update_params(params, particle, keys, it = None):
 # -----------------------------
 # 3) SIMULATOR
 # -----------------------------
-def simulate_model(params, states, incidences, current_dir, rng):
+def simulate_model(params, states, incidences, rng):
     
-    prevs, R0_series, incidences, vacc_post_inf = sim.main(params, states, incidences, current_dir, rng)
+    prevs, R0_series, incidences, vacc_post_inf = sim.main(params, states, incidences, rng)
     
     return prevs, R0_series, incidences, vacc_post_inf
 
@@ -383,10 +371,9 @@ def run_particle(idx, particle, seed_list, common_var_all_runs, parallel, accept
         # Copy states and params for this particle
         states = {k: v.copy() for k, v in empty_states.items()}
         incidences = {k: v.copy() for k, v in empty_states.items() if k not in {"S1"}}
-        # incidences = {k: v.copy() for k, v in empty_states.items() if k not in {"S0", "S1"}}
     
         # Run simulation
-        prevalences, R0_series, incidences, vacc_post_inf = simulate_model(params_run, states, incidences, current_dir, rng)
+        prevalences, R0_series, incidences, vacc_post_inf = simulate_model(params_run, states, incidences, rng)
     
         # Compute summary statistics & acceptance
         accepted, AR, VE, VE_alt = compute_summary(prevalences, incidences, params_run, peak_time_range, AR_range, VE_range, vacc_post_inf)

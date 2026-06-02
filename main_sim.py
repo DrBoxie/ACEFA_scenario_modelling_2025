@@ -3,10 +3,7 @@ import os
 from operator import itemgetter
 import main_stochastic as stoc
 
-def main(params, states, incidences, curr_dir, rng, new_phis = False, laiv_ages = []):
-    # TODO: Check whether the variables new_phis and laiv_ages are still in use. If they are, it should be via either the laiv_phis
-    # calculation, or in the forward projection
-    # TODO: I think curr_dir can be removed from the function definition above. Check this.
+def main(params, states, incidences, rng, new_phis = False, laiv_ages = []): 
         
     prevs, R0_series, inc, vacc_post_inf = stoc.simul(params, states, incidences, rng, new_phis = new_phis, laiv_ages = laiv_ages)
                 
@@ -21,7 +18,6 @@ def init_params():
     t_laiv_start, t_laiv_end = 59, 100                                          # Start and end date of LAIV program
     nr_days = t_end - t_start
     
-    # age_groups = ["<1", "1-4", "5-11", "12-17", "18-64", "65-79", "80+"]        # 7 age groups
     age_groups = ["<1", "1" ,"2-4", "5-11", "12-17", "18-64", "65-79", "80+"]        # 8 age groups
     compartments = ["S0", "S1", "V0", "V1", "I_S0", "I_S1", "I_V0", "I_V1", "R_S", "R_V"]
     S_comps = ["S0", "S1", "V0", "V1"]                                          # Susceptible compartments
@@ -38,25 +34,11 @@ def init_params():
     
     tot_pop = 1_000_000
     
-    # Age distribution with 7 age groups
-    # frac_ages = np.array([0.010752583, 0.044639546, 0.08338837, 0.073682919, 0.614286160, 0.129143011, 0.044107411])
-    
     # Age distribution with 8 age groups
     frac_ages = np.array([0.010752583, 0.010748152, 0.033891394, 0.08338837, 0.073682919, 0.614286159, 0.129143011, 0.044107411])
 
     # N holds the population for each of the age groups.    
     N = allocate_rounded(tot_pop, frac_ages)
-    
-    # Contact matrix with 7 age groups (aggregating the 1-2 and the 2-5 into one single group)
-    # C = np.array([
-    #     [0.375779488, 0.14313033,	0.052502325,	0.02248264,	0.093521173,	0.007517928,	0.001580057],
-    #     [0.59290092,	2.726163835,	0.798894201,	0.181099599,	0.428477814,	0.133352435,	0.053152569],
-    #     [0.405668348,	1.490154849,	8.467514786,	1.801643719,	0.677721934,	0.347731176,	0.189136569],
-    #     [0.154319918,	0.300083216,	1.600482745,	9.463746013,	0.878385651,	0.189544108,	0.126039369],
-    #     [5.355102935,	5.922918595,	5.022464015,	7.327712821,	10.38538854,	3.609060442,	2.608662633],
-    #     [0.091321412,	0.391043379,	0.546670304,	0.3354363, 0.765615499,	1.753038513, 0.728460955],
-    #     [0.006196919,	0.050324215,	0.096003292,	0.072016955,	0.178674775,	0.235198769,	0.129056892]
-    # ])
     
     # Contact matrix with 8 age groups
     C = np.array([
@@ -190,16 +172,10 @@ def init_params():
     
     return params
 
-def create_states(params):
+def create_states(params): 
     compartments, nr_age, nr_days = itemgetter("compartments", "nr_age", "nr_days")(params)
     states = {key: np.zeros((nr_age, nr_days)) for key in compartments}
     return states
-
-def create_daily_incidence(params):
-    compartments, nr_age, nr_days = itemgetter("compartments", "nr_age", "nr_days")(params)
-    skip = {"S0", "S1"}
-    daily_inc = {key: np.zeros((nr_age, nr_days)) for key in compartments if key not in skip}
-    return daily_inc
 
 def allocate_rounded(pop, frac):
     # Allocate population to group based on fractions, keeping their sum equal.
@@ -236,12 +212,6 @@ def allocate_vacc(daily_vacc_admin,target_cover, N, vacc_rates, t_vacc_start, t_
 
     return daily_vacc_admin
 
-def run_stoc(params, states, incidences, curr_dir, rng, new_phis = False, laiv_ages = []):
-    
-    sols_stoc, R0_series, incidences, vacc_post_inf = stoc.simul(params, states, incidences, rng, new_phis = new_phis, laiv_ages = laiv_ages)
-    
-    return sols_stoc, R0_series, incidences, vacc_post_inf
-
 if __name__ == "__main__":
     
     current_dir = os.getcwd().lower()
@@ -249,6 +219,8 @@ if __name__ == "__main__":
     
     params = init_params()
     states = create_states(params)
-    daily_inc = create_daily_incidence(params)
-    main(params, states, daily_inc, current_dir, rng)
+    compartments, nr_age, nr_days = itemgetter("compartments", "nr_age", "nr_days")(params)
+    skip = {"S0", "S1"}
+    daily_inc = {key: np.zeros((nr_age, nr_days)) for key in compartments if key not in skip}
+    main(params, states, daily_inc, rng)
     

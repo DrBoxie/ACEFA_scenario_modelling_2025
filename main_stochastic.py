@@ -1,7 +1,7 @@
 import numpy as np
 from operator import itemgetter
 
-def initial_conditions(params, states):
+def initial_conditions(params, states): 
     N, frac_S1 = itemgetter("N", "frac_S1")(params)
     
     # Everyone starts in the susceptible (unvaccinated) states
@@ -25,7 +25,7 @@ def initial_conditions(params, states):
     
     return S0_init, S1_init
 
-def current_pop(states, params, day):
+def current_pop(states, params, day): 
     # Extract today's population from the "states" dictionary
     
     compartments = params["compartments"]
@@ -33,7 +33,7 @@ def current_pop(states, params, day):
     return {c: states[c][:, day] for c in compartments}
 
 def administer_vacc(states, incidences, params, day, nr_to_admin, vacc_post_inf, new_phis = False, laiv_ages = []):
-    
+   
     Unvacc_comps, Vacc_comps, Unvacc_to_Vacc = itemgetter("Unvacc_comps", "Vacc_comps", "Unvacc_to_Vacc")(params)
     if new_phis:
         laiv_idx = [params["age_groups"].index(age) for age in laiv_ages]
@@ -71,33 +71,8 @@ def administer_vacc(states, incidences, params, day, nr_to_admin, vacc_post_inf,
                 vacc_post_inf += int_vals[i, :].astype(int)
         
     return vacc_post_inf
-
-def administer_iiv(states, incidences, params, day, nr_to_admin):
-    
-    # Administer LAIV
-    
-    Unvacc_comps, Vacc_comps, Unvacc_to_Vacc = itemgetter("Unvacc_comps", "Vacc_comps", "Unvacc_to_Vacc")(params)
-    
-    curr = current_pop(states, params, day)                                     # Current population in each compartment
-    
-    Unvacc = {k: curr[k] for k in Unvacc_comps}
-    totals = np.sum([arr for arr in Unvacc.values()], axis=0)                   # Total unvaccinated population per age group
-
-    allocation = {comp: arr * nr_to_admin / totals for comp, arr in Unvacc.items()}
-    # allocation = {comp: arr * eta / totals for comp, arr in Unvacc.items()}
-    
-    # stack all arrays row-wise
-    vac_not_rounded = np.array([allocation[k] for k in Unvacc_comps])
-    vac_rounded = np.array([round_preserve_sum(vac_not_rounded[:, i]) for i in range(vac_not_rounded.shape[1])]).T
-    
-    for k, (u, v) in enumerate(zip(Unvacc_comps, Vacc_comps)):
-        states[u][:, day] -= vac_rounded[k, :]
-        states[v][:, day] += vac_rounded[k, :]
-    
-    for c in Unvacc_comps:
-        incidences[Unvacc_to_Vacc[c]][:, day] += vac_rounded[Unvacc_comps.index(c) , :]
    
-def tau_leap_step(states, incidences, params, day, nr_sub_int, p_ext, rng):    
+def tau_leap_step(states, incidences, params, day, nr_sub_int, p_ext, rng):
     """
     Perform one tau-leap sub-interval update for the current day.
     Remarks:
@@ -186,20 +161,9 @@ def tau_leap_step(states, incidences, params, day, nr_sub_int, p_ext, rng):
     for c in compartments:
         states[c][:, day] = curr[c]
 
-def round_preserve_sum(vec):
-    # code snippet to round while keeping sum of vector fixed, assuming the the original sum of the vector was already an integer
-    floored = np.floor(vec).astype(int)
-    remainder = int(vec.sum() - floored.sum())  # number of 1s to distribute
-    # Find indices with largest fractional parts
-    frac_indices = np.argsort(vec - floored)[::-1]
-    floored[frac_indices[:remainder]] += 1
-    return floored
-
-def compute_R0(params):
+def compute_R0(params): 
     # This calculated R0 with the initial value of beta during a run
     # and assuming all the gammas are the same (I'm using the value of gamma[0])
-    # The commented out sections are kept as they could be relevant for the R_eff calculatio
-    # should we want to implement it
     
     C, gamma, beta_full, N = itemgetter("C", "gamma", "beta", "N")(params)
     
@@ -214,28 +178,9 @@ def compute_R0(params):
     R0 = max(np.linalg.eigvals(K).real)
     
     return R0
-
-def wane_pre_exist_immun(states, incidences, params, day, rng):
-    
-    omega = np.log(2) / params["half_life"]
-    p_daily_wane = 1 - np.exp(-omega)
-    
-    curr = current_pop(states, params, day)
-    wane_S1_to_S0 = rng.binomial(curr["S1"].astype(int), p_daily_wane)
-    wane_V1_to_V0 = rng.binomial(curr["V1"].astype(int), p_daily_wane)
-    
-    states["S1"][:, day] -= wane_S1_to_S0
-    states["S0"][:, day] += wane_S1_to_S0
-    states["V1"][:, day] -= wane_V1_to_V0
-    states["V0"][:, day] += wane_V1_to_V0
-    
-    incidences["S0"][:, day] += wane_S1_to_S0
-    incidences["V0"][:, day] += wane_V1_to_V0
     
 def simul(params, states, incidences, rng, new_phis = False, laiv_ages = []):
-    # TODO: Check whether the variables new_phis and laiv_ages are still in use. If they are, it should be via either the laiv_phis
-    # calculation, or in the forward projection
-    
+        
     tau, p_ext, nr_days, nr_age, compartments, daily_vacc_admin = itemgetter("tau", "p_ext", "nr_days", "nr_age", "compartments", "daily_vacc_admin")(params)
     
     # divide each day into subintervals depending on the size of tau, and for each time step calculate all the transitions that day
