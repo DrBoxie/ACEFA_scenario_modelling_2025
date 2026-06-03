@@ -60,7 +60,7 @@ import platform
 
 ABC_output_results = True                                                       # Suppress outputting figures and dataframes for ABC (if False) for quicker runs
 
-nr_runs_per_part = 10
+nr_runs_per_part = 3
 accept_perc = 0.9
 nr_allowed_rejected = nr_runs_per_part - int(np.ceil(nr_runs_per_part * accept_perc))
 
@@ -77,7 +77,7 @@ def classic_abc(parallel = True, nr_cores = 12):
     
     accepted_counter = 0
     
-    nr_particles = 100_000                                                          # Number of samples to produce in the LHS
+    nr_particles = 1_000                                                          # Number of samples to produce in the LHS
     seed_list = rng.integers(0, 1_000_000_000_000,                              # one seed value per unique combination of particle and run nr of that particle
                              size=nr_particles * nr_runs_per_part) 
     
@@ -222,8 +222,8 @@ def list_to_sample_params():
     phi_V0_range = [0.2, 0.8]
     phi_V1_range = [0.2, 0.8]
     frac_S1_range = [0.2, 0.8]
-    half_life = [90, 365]    
-    # half_life = [365000, 365250]                                              # Only used for testing purposes
+    # half_life = [90, 365]    
+    half_life = [365000, 365250]                                              # Only used for testing purposes
     
     params_to_sample = {
         "beta_0": beta_0_range,

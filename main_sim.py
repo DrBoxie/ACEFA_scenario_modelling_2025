@@ -127,7 +127,51 @@ def init_params():
         "G": ["optimistic", ["5-11", "12-17"], [0.8, 0.8], "optimistic 5-18", "Optimistic_LAIV_5-18yo"],
         "H": ["mid", ["2-4"], [0.4], "mid 2-5", "Mid_LAIV_2-5yo"], 
         "J": ["mid", ["2-4", "5-11"], [0.4, 0.6], "mid 2-12", "Mid_LAIV_2-12yo"], 
-        "K": ["mid", ["2-4", "5-11", "12-17"], [0.4, 0.6, 0.6], "mid 2-18", "Mid_LAIV_2-18yo"]
+        "K": ["mid", ["2-4", "5-11", "12-17"], [0.4, 0.6, 0.6], "mid 2-18", "Mid_LAIV_2-18yo"],
+        "L": ["mid", ["5-11"], [0.4], "mid low 5-12", "Mid_Low_LAIV_5-12yo"], 
+        "M": ["mid", ["5-11", "12-17"], [0.4, 0.4], "mid Low 5-18" ,"Mid_Low_LAIV_5-18yo"],
+        "N": ["mid", ["2-4", "5-11"], [0.4, 0.4], "mid Low 2-12", "Mid_Low_LAIV_2-12yo"],
+        "P": ["mid", ["2-4", "5-11", "12-17"], [0.4, 0.4, 0.4], "mid Low 2-18", "Mid_Low_LAIV_2-18yo"],
+        "Q": ["mid", ["5-11"], [0.2], "mid Extra Low 5-12", "Mid_Extra_Low_LAIV_5-12yo"],
+        "R": ["mid", ["5-11", "12-17"], [0.2, 0.2], "mid Extra Low 5-18", "Mid_Extra_Low_LAIV_5-18yo"],
+        }
+    
+    colors = {
+        "A": "black",
+        "B": "#1B9E77",
+        "C": "#D95F02",
+        "D": "#7570B3",
+        "E": "#E7298A",
+        "F": "#66A61E",
+        "G": "#E6AB02",
+        "H": "#A6761D",
+        "J": "#666666",
+        "K": "#1F78B4",
+        "L": "#B15928",
+        "M": "#A6CEE3",
+        "N": "#B2DF8A",
+        "P": "#FB9A99",
+        "Q": "#FDBF6F",
+        "R": "#CAB2D6"
+        }
+    
+    labels = {
+        "A": "baseline",
+        "B": "pessimistic 5-12", 
+        "E": "pessimistic 5-18", 
+        "C": "central 5-12", 
+        "F": "central 5-18", 
+        "H": "central 2-5", 
+        "J": "central 2-12",  
+        "K": "central 2-18", 
+        "D": "optimistic 5-12", 
+        "G": "optimistic 5-18",
+        "L": "low 5-12",
+        "M": "low 5-18",
+        "N": "low 2-12",
+        "P": "low 2-18",
+        "Q": "extra low 5-12",
+        "R": "extra low 5-18",
         }
     
     params = {"tau": tau,
@@ -167,7 +211,9 @@ def init_params():
               "shift": shift,
               "laiv_rates": laiv_rates,
               "target_cover": target_cover,
-              "scenarios": scenarios
+              "scenarios": scenarios,
+              "colors": colors,
+              "labels": labels
               }
     
     return params

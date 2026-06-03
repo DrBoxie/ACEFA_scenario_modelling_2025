@@ -28,7 +28,7 @@ def forw_proj(parallel = True, nr_cores = 12):
     
     print("Let's get this thing on the road...\n")
     
-    nr_proj_per_part = 7
+    nr_proj_per_part = 2
     seed = 790202       # Used whenever multiple runs are done for each combo of particle and scenario
     
     output_figs = True
@@ -127,43 +127,15 @@ def forw_proj(parallel = True, nr_cores = 12):
         print("Time to go to the drawing board.\n")
         
         params = sim.init_params()
-        nr_days, t_start, t_end = itemgetter("nr_days", "t_start", "t_end")(params)
+        nr_days, t_start, t_end, colors, labels = itemgetter("nr_days", "t_start", "t_end", "colors", "labels")(params)
         
         thin_space_formatter = FuncFormatter(lambda x, _: f"{int(x):,}".replace(",", "\u2009"))
-        
-        colors = {
-            "A": "black",
-            "B": "#1B9E77",
-            "C": "#D95F02",
-            "D": "#7570B3",
-            "E": "#E7298A",
-            "F": "#66A61E",
-            "G": "#E6AB02",
-            "H": "#A6761D",
-            "J": "#666666",
-            "K": "#1F78B4"
-            }
-        
-        labels = {
-            "A": "baseline",
-            "B": "pessimistic 5-12", 
-            "E": "pessimistic 5-18", 
-            "C": "central 5-12", 
-            "F": "central 5-18", 
-            "H": "central 2-5", 
-            "J": "central 2-12",  
-            "K": "central 2-18", 
-            "D": "optimistic 5-12", 
-            "G": "optimistic 5-18"
-            }
         
         days = np.arange(nr_days)
         
         max_baseline = np.max(baseline_inf_inc)
         
-        filename_spag = "compare_all_scenarios_spag"
-        
-        plot_spaghetti_per_scenario(output_folder_path, filename_spag, max_baseline, thin_space_formatter, nr_parts, days, results_list, colors, labels)
+        plot_spaghetti_per_scenario(output_folder_path, max_baseline, thin_space_formatter, nr_parts, days, results_list, colors, labels)
         
         plot_AR_swarm(output_folder_path, scenarios, results_list, colors, labels, thin_space_formatter)
         
@@ -590,12 +562,13 @@ def plot_AR_swarm(output_folder_path, scenarios, results_list, colors, labels, t
         fig.savefig(filepath)
         plt.close(fig)
     
-def plot_spaghetti_per_scenario(output_folder_path, filename_spag, max_baseline, thin_space_formatter, nr_parts, days, results_list, colors, labels):
+def plot_spaghetti_per_scenario(output_folder_path, max_baseline, thin_space_formatter, nr_parts, days, results_list, colors, labels):
     
+    filename_spag = "compare_all_scenarios_spag"
     fig_filepath_spag = os.path.join(output_folder_path, filename_spag)
     
-    nr_rows, nr_cols = 4, 3
-    fig_compare_all, axes = plt.subplots(nr_rows, nr_cols, figsize=(24, 14), sharex=True)
+    nr_rows, nr_cols = 6, 3
+    fig_compare_all, axes = plt.subplots(nr_rows, nr_cols, figsize=(24, 21), sharex=True)
     axes = axes.flatten() 
     
     ax_map ={
@@ -608,7 +581,13 @@ def plot_spaghetti_per_scenario(output_folder_path, filename_spag, max_baseline,
         "G": axes[8],     
         "H": axes[9],
         "J": axes[10],
-        "K": axes[11]
+        "K": axes[11],
+        "L": axes[12],
+        "M": axes[13],
+        "N": axes[14],
+        "P": axes[15],
+        "Q": axes[16],
+        "R": axes[17],
         }
     
     tick_label_size = 22
@@ -637,7 +616,7 @@ def plot_spaghetti_per_scenario(output_folder_path, filename_spag, max_baseline,
         row = i // 3
         
         # Determine if this ax is "active" (not turned off)
-        if not ax.has_data():  # axes[0] and axes[2] in top row may be off
+        if not ax.has_data():  # axes[0] and axes[2] in top row should be off
             continue
         
         # X-label: only on bottom row
@@ -646,18 +625,13 @@ def plot_spaghetti_per_scenario(output_folder_path, filename_spag, max_baseline,
         else:
             ax.set_xlabel("Day", fontsize = axis_label_size)
         
-        # Y-label: leftmost active subplot in row
-        leftmost_ax = None
-        for j in range(row*3, (row+1)*3):
-            if axes[j].has_data():
-                leftmost_ax = axes[j]
-                break
-        if ax != leftmost_ax:
-            ax.set_ylabel("")
-        else:
-            ax.set_ylabel("Daily infection incidence", fontsize = axis_label_size)
+        # no individual y-labels, but only one for the whole figure (except the top row)
+        ax.set_ylabel("")
+        fig_compare_all.supylabel("Daily infection incidence", fontsize = axis_label_size, x = 0.01)
+        axes[1].set_ylabel("Daily infection incidence", fontsize = axis_label_size)
     
     fig_compare_all.tight_layout()
+    fig_compare_all.subplots_adjust(top=0.95)
     fig_compare_all.savefig(fig_filepath_spag)
     plt.close(fig_compare_all)
 
