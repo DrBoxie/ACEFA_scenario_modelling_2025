@@ -14,8 +14,9 @@ import platform
 
 new_phis = True
 local_parallel = True
+local_waning = False
 
-def laiv_phis(new_phis = True, parallel = True, nr_cores = 12):
+def laiv_phis(new_phis = True, parallel = True, waning = False, nr_cores = 12):
     
     print("\nStarting the simulation.\n")
     
@@ -40,8 +41,12 @@ def laiv_phis(new_phis = True, parallel = True, nr_cores = 12):
         curr_dir = os.getcwd().lower()
     else:
         curr_dir = os.getcwd()
+    
+    if waning:    
+        particle_addr = os.path.join(curr_dir, "ABC outputs with waning")
+    else:
+        particle_addr = os.path.join(curr_dir, "ABC outputs no waning")
         
-    particle_addr = os.path.join(curr_dir, "ABC outputs")
     PATH_IN = os.path.join(particle_addr, "accepted_particles.csv")
     SEED_IN = os.path.join(particle_addr, "accepted_seeds.csv")
 
@@ -205,7 +210,7 @@ def run_particle_wrapper(args):
 if __name__ == "__main__":
     
     start_time = time.time()
-    laiv_phis(parallel = local_parallel)
+    laiv_phis(parallel = local_parallel, waning = local_waning)
     
     end_time = time.time()
     elapsed = end_time - start_time

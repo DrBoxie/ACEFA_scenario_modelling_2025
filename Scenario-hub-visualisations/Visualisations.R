@@ -5,59 +5,97 @@
 
 rm(list = ls())
 
-setwd("C:/Users/ebisa/Documents/University of Melbourne/Scenario modelling exercise 2025/Scenario-hub-visualisations")
+setwd("/home/ubuntu/R_code")
+# setwd("C:/Users/ebisa/Documents/University of Melbourne/Scenario modelling exercise 2025/Code/Scenario-hub-visualisations")
 
-library(ggplot2)
-#library(tidyverse)
-library(dplyr)
-library(tidyr)
+# library(ggplot2)
+# library(dplyr)
+# library(tidyr)
+library(tidyverse)
 library(patchwork)
 library(lubridate)
-library(socialmixr)
 library(reshape2)
-library(tidyverse)
 library(tictoc)
 
 # Read in data from another script
-source('Process data.R') # Read in simulation results from both teams
+source('Process_data.R') # Read in simulation results from both teams
 source("Colour_palette.R")  # Define colour palettes and visualisation standards for outputs
 
 # ################################################################################.
 # # Adding reductions in infections, cases and hospitalisations to the dataframe  # ------ 
 # ################################################################################.
 
-dat_uom <- dat_uom |>
-  group_by(simulation_index, age_group, target, team) |>
-  mutate(
-    reduction = if_else(
-      scenario == "Status_quo",
-      NA_real_,
-      value[scenario == "Status_quo"] - value
-    )
-  ,
-  perc_reduction = if_else(
-    scenario == "Status_quo",
-    NA_real_,
-    100 * (value[scenario == "Status_quo"] - value) / value[scenario == "Status_quo"]
-  )
-  ) |>
-  ungroup()
+add_reductions <- function(df){
+  df <- df |>
+    group_by(simulation_index, age_group, target, team) |>
+    mutate(
+      reduction = if_else(
+        scenario == "Status_quo",
+        NA_real_,
+        value[scenario == "Status_quo"] - value
+      )
+      ,
+      perc_reduction = if_else(
+        scenario == "Status_quo",
+        NA_real_,
+        100 * (value[scenario == "Status_quo"] - value) / value[scenario == "Status_quo"]
+      )
+    ) |>
+    ungroup()
+  
+  return(df)
+}
+
+dat_uom_list <- lapply(dat_uom_list, add_reductions)
+dat_uom_inf <- dat_uom_list[[1]] %>%
+  mutate(team = "no waning")
+dat_uom_dis <- dat_uom_list[[2]] %>%
+  mutate(team = "no waning")
+dat_uom_adm <- dat_uom_list[[3]] %>%
+  mutate(team = "no waning")
+dat_uom_fatal <- dat_uom_list[[4]] %>%
+  mutate(team = "no waning")
+
+dat_uom_list_with_waning <- lapply(dat_uom_list_with_waning, add_reductions)
+dat_uom_inf_with_waning <- dat_uom_list_with_waning[[1]] %>%
+  mutate(team = "with waning")
+dat_uom_dis_with_waning <- dat_uom_list_with_waning[[2]] %>%
+  mutate(team = "with waning")
+dat_uom_adm_with_waning <- dat_uom_list_with_waning[[3]] %>%
+  mutate(team = "with waning")
+dat_uom_fatal_with_waning <- dat_uom_list_with_waning[[4]] %>%
+  mutate(team = "with waning")
+
+dat_uom_inf <- dat_uom_inf %>%
+  bind_rows(dat_uom_inf_with_waning)
+
+dat_uom_dis <- dat_uom_dis %>%
+  bind_rows(dat_uom_dis_with_waning)
+
+dat_uom_adm <- dat_uom_adm %>%
+  bind_rows(dat_uom_adm_with_waning)
+
+dat_uom_fatal <- dat_uom_fatal %>%
+  bind_rows(dat_uom_fatal_with_waning)
+
+dat_uom_list <- list(dat_uom_inf, dat_uom_dis, dat_uom_adm, dat_uom_fatal)
 
 ###########.
 ## Plots  ## -----
 ###########.
 
-for (t in c("infection_incidence", "disease_incidence", "admission_incidence")){
+dir.create("Plots", showWarnings = FALSE)
 
-# for (t in c("infection_incidence")){
-  y_axis_name <- switch(t,
-                        "infection_incidence" = "Infections",
-                        "disease_incidence" = "Cases",
-                        "admission_incidence" = "Hospitalisations"
-                        )
+y_axis_name <- c(
+  "Infections",
+  "Cases",
+  "Hospitalisations",
+  "Fatalities"
+)
+
+for ( i in seq_along(dat_uom_list)){
   
-  fig_data <- dat_uom |>
-    filter(target == t) |>
+  fig_data <- dat_uom_list[[i]] |>
     mutate(scenario = factor(scenario, levels = order_scenario2))
   
   # Absolute numbers for each target
@@ -75,15 +113,15 @@ for (t in c("infection_incidence", "disease_incidence", "admission_incidence")){
     scale_y_continuous(labels = scales::comma) +
     theme_bw(base_size = 14) +
     theme(strip.background = element_rect("white"),
-          legend.position = "none",
+          legend.position = "right",
           plot.title = element_text(hjust = 0.5, face = "bold")) +
-    labs(x = "Age groups", y = y_axis_name, title = paste(y_axis_name, "across all age groups")) +
+    labs(x = "Age groups", y = y_axis_name[i], title = paste(y_axis_name[i], "across all age groups")) +
     facet_wrap(~scenario, ncol = 3, drop = FALSE, labeller = labeller(scenario = labeller_scenario))
   
-  ggsave(file.path("Plots", paste(y_axis_name, ".png", sep = "")), height = 10, width = 14, dpi = 300)
+  ggsave(file.path("Plots", paste(y_axis_name[i], ".png", sep = "")), height = 10, width = 14, dpi = 300)
   
   fig_data <- fig_data |>
-    filter(!scenario == "Status_quo")
+    filter(scenario != "Status_quo")
   
   # Reduction for each target
   ggplot(fig_data) +
@@ -100,12 +138,12 @@ for (t in c("infection_incidence", "disease_incidence", "admission_incidence")){
     scale_y_continuous(labels = scales::comma) +
     theme_bw(base_size = 14) +
     theme(strip.background = element_rect("white"),
-          legend.position = "none",
+          legend.position = "right",
           plot.title = element_text(hjust = 0.5, face = "bold")) +
-    labs(x = "Age groups", y = paste(y_axis_name, "averted"), title = paste(y_axis_name, "averted across all age groups")) +
+    labs(x = "Age groups", y = paste(y_axis_name[i], "averted"), title = paste(y_axis_name[i], "averted across all age groups")) +
     facet_wrap(~scenario, ncol = 3, drop = TRUE, labeller = labeller(scenario = labeller_scenario))
   
-  ggsave(file.path("Plots", paste(y_axis_name, "_averted.png", sep = "")), height = 10, width = 14, dpi = 300)
+  ggsave(file.path("Plots", paste(y_axis_name[i], "_averted.png", sep = "")), height = 10, width = 14, dpi = 300)
   
   # Percentage reduction for each target
   ggplot(fig_data) +
@@ -122,11 +160,13 @@ for (t in c("infection_incidence", "disease_incidence", "admission_incidence")){
     scale_y_continuous(labels = scales::comma) +
     theme_bw(base_size = 14) +
     theme(strip.background = element_rect("white"),
-          legend.position = "none",
+          legend.position = "right",
           plot.title = element_text(hjust = 0.5, face = "bold")) +
-    labs(x = "Age groups", y = paste("%", y_axis_name, "averted"), title = paste( "%",y_axis_name, "averted across all age groups")) +
+    labs(x = "Age groups", y = paste("%", y_axis_name[i], "averted"), title = paste( "%",y_axis_name[i], "averted across all age groups")) +
     facet_wrap(~scenario, ncol = 3, drop = TRUE, labeller = labeller(scenario = labeller_scenario))
   
-  ggsave(file.path("Plots", paste("perc_",y_axis_name, "_averted.png", sep = "")), height = 10, width = 14, dpi = 300)
+  ggsave(file.path("Plots", paste("perc_",y_axis_name[i], "_averted.png", sep = "")), height = 10, width = 14, dpi = 300)
   
 }
+
+cat("Plots production finished.\n\n")

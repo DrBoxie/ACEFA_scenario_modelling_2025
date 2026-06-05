@@ -23,12 +23,13 @@ from itertools import product
 plt.close("all")                                                                # Close all figures that may be open in memory
 
 local_parallel = True
+local_waning = True
 
-def forw_proj(parallel = True, nr_cores = 12):
+def forw_proj(parallel = True, waning = False, nr_cores = 12):
     
     print("Let's get this thing on the road...\n")
     
-    nr_proj_per_part = 2
+    nr_proj_per_part = 50
     seed = 790202       # Used whenever multiple runs are done for each combo of particle and scenario
     
     output_figs = True
@@ -39,15 +40,23 @@ def forw_proj(parallel = True, nr_cores = 12):
         current_dir = os.getcwd().lower()
     else:
         current_dir = os.getcwd()
+
+    if waning:    
+        particle_addr = os.path.join(current_dir, "ABC outputs with waning")
+    else:
+        particle_addr = os.path.join(current_dir, "ABC outputs no waning")
         
-    particle_addr = os.path.join(current_dir, "ABC outputs")
     PATH_IN = os.path.join(particle_addr, "accepted_particles.csv")
     SEED_IN = os.path.join(particle_addr, "accepted_seeds.csv")
     ACC_PES_IN = os.path.join(particle_addr, "acc_pes_phis.csv")
     ACC_MID_IN = os.path.join(particle_addr, "acc_mid_phis.csv")
     ACC_OPT_IN = os.path.join(particle_addr, "acc_opt_phis.csv")
     ACC_INF_INC = os.path.join(particle_addr, "acc_inf_inc.csv")
-    output_folder_path = os.path.join(current_dir, "Forward projection")
+    
+    if waning:
+        output_folder_path = os.path.join(current_dir, "Forward projection with waning")
+    else:
+        output_folder_path = os.path.join(current_dir, "Forward projection no waning")
     
     particles = pd.read_csv(PATH_IN ,index_col = 0)
     part_vars = list(particles.columns)
@@ -330,14 +339,18 @@ def forw_proj(parallel = True, nr_cores = 12):
         
         print("Finished outputting parquet file.\n")
 
-def plot_corr_for_AR(fig_folder_path, full_parts, sample_keys, highest_AR, lowest_AR):
+def plot_corr_for_AR(fig_folder_path, full_parts, sample_keys, highest_AR, lowest_AR, waning):
     
     fig_filepath = os.path.join(fig_folder_path, "corr_parts_params_scenarios")
     
     beta_0_range = [0.037, 0.055]
     beta_1_range = [0.05, 0.3]
     shift = [40, 190]
-    half_life_range = [90, 365]
+    
+    if waning:
+        half_life_range = [90, 365]
+    else:
+        half_life_range = [365_000, 365_250]
     phi_S1_range = [0.2, 0.8]
     phi_V0_range = [0.2, 0.8]
     phi_V1_range = [0.2, 0.8]
@@ -740,7 +753,7 @@ if __name__ == "__main__":
     
     start_time = time.time()
     
-    forw_proj(parallel  = local_parallel)
+    forw_proj(parallel  = local_parallel, waning = local_waning)
     
     end_time = time.time()
     elapsed = end_time - start_time

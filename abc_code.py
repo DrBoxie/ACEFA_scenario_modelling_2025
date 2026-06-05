@@ -49,7 +49,7 @@ import pandas as pd
 import main_sim as sim
 import lhs_sampler as lhs
 import create_plots as plt_crt
-# import laiv_phis as laiv
+import laiv_phis as laiv
 # import forward_proj as forw
 import copy
 from operator import itemgetter
@@ -60,12 +60,14 @@ import platform
 
 ABC_output_results = True                                                       # Suppress outputting figures and dataframes for ABC (if False) for quicker runs
 
-nr_runs_per_part = 3
+nr_runs_per_part = 10
 accept_perc = 0.9
 nr_allowed_rejected = nr_runs_per_part - int(np.ceil(nr_runs_per_part * accept_perc))
 
 paral = True
 cores = 12
+
+waning = True
 
 def classic_abc(parallel = True, nr_cores = 12):
     
@@ -77,7 +79,7 @@ def classic_abc(parallel = True, nr_cores = 12):
     
     accepted_counter = 0
     
-    nr_particles = 1_000                                                          # Number of samples to produce in the LHS
+    nr_particles = 100_000                                                          # Number of samples to produce in the LHS
     seed_list = rng.integers(0, 1_000_000_000_000,                              # one seed value per unique combination of particle and run nr of that particle
                              size=nr_particles * nr_runs_per_part) 
     
@@ -85,8 +87,12 @@ def classic_abc(parallel = True, nr_cores = 12):
         current_dir = os.getcwd().lower()
     else:
         current_dir = os.getcwd()
-        
-    fig_folder_path = os.path.join(current_dir, "ABC outputs")
+    
+    if waning:    
+        fig_folder_path = os.path.join(current_dir, "ABC outputs with waning")
+    else:
+        fig_folder_path = os.path.join(current_dir, "ABC outputs no waning")
+            
     os.makedirs(fig_folder_path, exist_ok=True)    
     
     # ranges for acceptance
@@ -102,7 +108,7 @@ def classic_abc(parallel = True, nr_cores = 12):
     params = sim.init_params()    
     nr_days, nr_age, pop, I_comps = itemgetter("nr_days", "nr_age", "tot_pop", "I_comps")(params)
     
-    params_to_sample = list_to_sample_params()
+    params_to_sample = list_to_sample_params(waning)
     sample_array, sample_keys = lhs.lhs(params_to_sample, nr_particles, rng2)
     
     # Initialise state for simulation
@@ -206,7 +212,7 @@ def classic_abc(parallel = True, nr_cores = 12):
                         AR_range, VE_range, sample_array, sample_keys, fig_spag_plot, fig_inf_per_comp_for_age_groups, VE_comparison_plot,
                         fig_corr_accepted_particles, VE_plots, boxplot_vacc_post_inf, params_to_sample, fig_folder_path, parallel, nr_cores, R0_plot, list_R0_acc, list_R0_rej)
         
-def list_to_sample_params():    
+def list_to_sample_params(waning):    
    
 # =============================================================================
 # List the parameters to sample via LHS, with their upper and lower bounds
@@ -222,8 +228,10 @@ def list_to_sample_params():
     phi_V0_range = [0.2, 0.8]
     phi_V1_range = [0.2, 0.8]
     frac_S1_range = [0.2, 0.8]
-    # half_life = [90, 365]    
-    half_life = [365000, 365250]                                              # Only used for testing purposes
+    if waning:
+      half_life = [90, 365]
+    else:
+      half_life = [365_000, 365_250]
     
     params_to_sample = {
         "beta_0": beta_0_range,
@@ -425,14 +433,14 @@ if __name__ == "__main__":
     print(f"Total initial ABC elapsed time: {elapsed:.3f} seconds\n")
     print("Simulation is done! Huzzah!!!\n")
     
-    # start_time_laiv = time.time()
+    start_time_laiv = time.time()
 
-    # laiv.laiv_phis(parallel = paral, nr_cores = cores)
-    
-    # end_time_laiv = time.time()
-    # elapsed = end_time_laiv - start_time_laiv
-    # print(f"Simulation for new phi values elapsed time: {elapsed:.3f} seconds\n")
-    # print("Calculation of phi's is done! Booyah!!!\n")
+    laiv.laiv_phis(parallel = paral, waning = waning, nr_cores = cores)
+
+    end_time_laiv = time.time()
+    elapsed = end_time_laiv - start_time_laiv
+    print(f"Simulation for new phi values elapsed time: {elapsed:.3f} seconds\n")
+    print("Calculation of phi's is done! Booyah!!!\n")
     
     # start_time_forw = time.time()
     
