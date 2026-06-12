@@ -4,6 +4,7 @@
 ############.
 
 rm(list = ls())
+invisible(gc())
 
 setwd("/home/ubuntu/R_code")
 # setwd("C:/Users/ebisa/Documents/University of Melbourne/Scenario modelling exercise 2025/Code/Scenario-hub-visualisations")
@@ -16,6 +17,9 @@ library(patchwork)
 library(lubridate)
 library(reshape2)
 library(tictoc)
+
+paths_no_waning <- file.path("/pvol/R outputs no waning")
+paths_with_waning <- file.path("/pvol/R outputs with waning")
 
 # Read in data from another script
 source('Process_data.R') # Read in simulation results from both teams
@@ -84,7 +88,7 @@ dat_uom_list <- list(dat_uom_inf, dat_uom_dis, dat_uom_adm, dat_uom_fatal)
 ## Plots  ## -----
 ###########.
 
-dir.create("Plots", showWarnings = FALSE)
+dir.create("/pvol/R code Plots", showWarnings = FALSE)
 
 y_axis_name <- c(
   "Infections",
@@ -96,7 +100,10 @@ y_axis_name <- c(
 for ( i in seq_along(dat_uom_list)){
   
   fig_data <- dat_uom_list[[i]] |>
-    mutate(scenario = factor(scenario, levels = order_scenario2))
+    mutate(scenario = factor(scenario, levels = order_scenario2)) |>
+    mutate(team = factor(team,
+                         levels = c("with waning", "no waning"))) |>
+    arrange(team)
   
   # Absolute numbers for each target
   ggplot(fig_data) +
@@ -118,7 +125,7 @@ for ( i in seq_along(dat_uom_list)){
     labs(x = "Age groups", y = y_axis_name[i], title = paste(y_axis_name[i], "across all age groups")) +
     facet_wrap(~scenario, ncol = 3, drop = FALSE, labeller = labeller(scenario = labeller_scenario))
   
-  ggsave(file.path("Plots", paste(y_axis_name[i], ".png", sep = "")), height = 10, width = 14, dpi = 300)
+  ggsave(file.path("/pvol/R code Plots", paste(y_axis_name[i], ".png", sep = "")), height = 10, width = 14, dpi = 300)
   
   fig_data <- fig_data |>
     filter(scenario != "Status_quo")
@@ -143,7 +150,7 @@ for ( i in seq_along(dat_uom_list)){
     labs(x = "Age groups", y = paste(y_axis_name[i], "averted"), title = paste(y_axis_name[i], "averted across all age groups")) +
     facet_wrap(~scenario, ncol = 3, drop = TRUE, labeller = labeller(scenario = labeller_scenario))
   
-  ggsave(file.path("Plots", paste(y_axis_name[i], "_averted.png", sep = "")), height = 10, width = 14, dpi = 300)
+  ggsave(file.path("/pvol/R code Plots", paste(y_axis_name[i], "_averted.png", sep = "")), height = 10, width = 14, dpi = 300)
   
   # Percentage reduction for each target
   ggplot(fig_data) +
@@ -165,7 +172,7 @@ for ( i in seq_along(dat_uom_list)){
     labs(x = "Age groups", y = paste("%", y_axis_name[i], "averted"), title = paste( "%",y_axis_name[i], "averted across all age groups")) +
     facet_wrap(~scenario, ncol = 3, drop = TRUE, labeller = labeller(scenario = labeller_scenario))
   
-  ggsave(file.path("Plots", paste("perc_",y_axis_name[i], "_averted.png", sep = "")), height = 10, width = 14, dpi = 300)
+  ggsave(file.path("/pvol/R code Plots", paste("perc_",y_axis_name[i], "_averted.png", sep = "")), height = 10, width = 14, dpi = 300)
   
 }
 

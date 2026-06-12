@@ -111,7 +111,7 @@ def init_params():
     # Calculate the number of vaccinations administers on each day    
     daily_vacc_admin = allocate_vacc(daily_vacc_admin, target_cover, N, iiv_rates, t_iiv_start, t_iiv_end)
 
-    p_ext = 0.0005                                                             # Percentage of the total population to be randomly infected from the outside throughout the whole run
+    p_ext = 0.001                                                                 # Percentage of the total population to be randomly infected from the outside throughout the whole run
     
     # Turn off external seeding of infection for testing purposes
     # p_ext = 0                                                  

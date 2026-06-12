@@ -8,45 +8,45 @@ cat("Preparing and loading UoM data.\n\n")
 
 # The following 4 blocks calculate the AR for each particle - run - age combination
 cat("Loading infections.\n\n")
-dat_uom_inf <- open_dataset(file.path("data", "dat_uom_infection_no_waning.parquet")) %>%
+dat_uom_inf <- open_dataset(file.path(paths_no_waning, "dat_uom_infection_no_waning.parquet")) %>%
   group_by(scenario, simulation_index, age_group, run_nr, target, setting, team) %>%
   summarise(value = sum(value), .groups = "drop") %>%
   collect()
 
-dat_uom_inf_with_waning <- open_dataset(file.path("data", "dat_uom_infection_with_waning.parquet")) %>%
+dat_uom_inf_with_waning <- open_dataset(file.path(paths_with_waning, "dat_uom_infection_with_waning.parquet")) %>%
   group_by(scenario, simulation_index, age_group, run_nr, target, setting, team) %>%
   summarise(value = sum(value), .groups = "drop") %>%
   collect()
 
 cat("Loading cases.\n\n")
-dat_uom_dis <- open_dataset(file.path("data", "dat_uom_disease_no_waning.parquet")) %>%
+dat_uom_dis <- open_dataset(file.path(paths_no_waning, "dat_uom_disease_no_waning.parquet")) %>%
   group_by(scenario, simulation_index, age_group, run_nr, target, setting, team) %>%
   summarise(value = sum(value), .groups = "drop") %>%
   collect()
 
-dat_uom_dis_with_waning <- open_dataset(file.path("data", "dat_uom_disease_with_waning.parquet")) %>%
+dat_uom_dis_with_waning <- open_dataset(file.path(paths_with_waning, "dat_uom_disease_with_waning.parquet")) %>%
   group_by(scenario, simulation_index, age_group, run_nr, target, setting, team) %>%
   summarise(value = sum(value), .groups = "drop") %>%
   collect()
 
 cat("Loading hospitalisations.\n\n")
-dat_uom_adm <- open_dataset(file.path("data", "dat_uom_admission_no_waning.parquet")) %>%
+dat_uom_adm <- open_dataset(file.path(paths_no_waning, "dat_uom_admission_no_waning.parquet")) %>%
   group_by(scenario, simulation_index, age_group, run_nr, target, setting, team) %>%
   summarise(value = sum(value), .groups = "drop") %>%
   collect()
 
-dat_uom_adm_with_waning <- open_dataset(file.path("data", "dat_uom_admission_with_waning.parquet")) %>%
+dat_uom_adm_with_waning <- open_dataset(file.path(paths_with_waning, "dat_uom_admission_with_waning.parquet")) %>%
   group_by(scenario, simulation_index, age_group, run_nr, target, setting, team) %>%
   summarise(value = sum(value), .groups = "drop") %>%
   collect()
 
 cat("Loading fatalities.\n\n")
-dat_uom_fatal <- open_dataset(file.path("data", "dat_uom_fatality_no_waning.parquet")) %>%
+dat_uom_fatal <- open_dataset(file.path(paths_no_waning, "dat_uom_fatality_no_waning.parquet")) %>%
   group_by(scenario, simulation_index, age_group, run_nr, target, setting, team) %>%
   summarise(value = sum(value), .groups = "drop") %>%
   collect()
 
-dat_uom_fatal_with_waning <- open_dataset(file.path("data", "dat_uom_fatality_with_waning.parquet")) %>%
+dat_uom_fatal_with_waning <- open_dataset(file.path(paths_with_waning, "dat_uom_fatality_with_waning.parquet")) %>%
   group_by(scenario, simulation_index, age_group, run_nr, target, setting, team) %>%
   summarise(value = sum(value), .groups = "drop") %>%
   collect()

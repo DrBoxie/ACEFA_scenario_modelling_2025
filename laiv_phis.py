@@ -40,7 +40,7 @@ def laiv_phis(new_phis = True, parallel = True, waning = False, nr_cores = 12):
     if platform.system() == "Windows":
         curr_dir = os.getcwd().lower()
     else:
-        curr_dir = os.getcwd()
+        curr_dir = "/pvol"
     
     if waning:    
         particle_addr = os.path.join(curr_dir, "ABC outputs with waning")

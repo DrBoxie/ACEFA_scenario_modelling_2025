@@ -1,6 +1,16 @@
 
-setwd("/home/ubuntu/R_code")
-# setwd("C:/Users/ebisa/Documents/University of Melbourne/Scenario modelling exercise 2025/Code/Scenario-hub-visualisations")
+source_file_type <- "with waning"
+source_file_formatted <- gsub("\\s+", "_", source_file_type)
+
+if (.Platform$OS.type == "windows"){
+  setwd("C:/Users/ebisa/Documents/University of Melbourne/Scenario modelling exercise 2025/Code")
+  output_root <- file.path(getwd(), "Scenario-hub-visualisations", "data")
+  source_file_dir <- file.path(paste("Forward projection",source_file_type), paste("df_incid_", source_file_formatted, ".parquet", sep = ""))
+} else{
+  setwd("/home/ubuntu/R_code")
+  output_root <- "/pvol"
+  source_file_path <- file.path(output_root, paste("Forward projection", source_file_type), paste("df_incid_", source_file_formatted, ".parquet", sep="") )
+}
 
 library(tidyverse)
 library(arrow)
@@ -116,7 +126,8 @@ ds_fatal <- Table$create(df_fatal)
 ds_ages  <- Table$create(ages)
 
 # replace the string valued columns by integers to decrease memory usage of further manipulations
-ds_full <- open_dataset(file.path("data", "df_incid_with_waning.parquet")) %>%
+
+ds_full <- open_dataset(source_file_path) %>%
   mutate(
     scenario_index = case_when(
       scenario == "Status quo" ~ 1,
@@ -154,7 +165,7 @@ ds_full <- open_dataset(file.path("data", "df_incid_with_waning.parquet")) %>%
   select(scenario_index, simulation_index, age_index, horizon, run_nr, target_index, value)
 
 # dataset with age groups 1 and 2-4 aggregated into 1-4
-tmp_collapsed_path <- file.path("data", "tmp_full_collapsed")
+tmp_collapsed_path <- file.path(output_root, "tmp_full_collapsed")
 
 if (dir.exists(tmp_collapsed_path)) {
   unlink(tmp_collapsed_path, recursive = TRUE)
@@ -239,7 +250,15 @@ car_ihr_labelled <- car_ihr %>%
   ) %>%
   select(-age_index)
 
-write_parquet(car_ihr_labelled, file.path("data", "car_ihr.parquet"))
+output_path <- file.path(output_root, paste("R outputs", source_file_type) )
+
+if (dir.exists(output_path)) {
+  unlink(output_path, recursive = TRUE)
+} 
+
+dir.create(output_path, recursive = TRUE)
+
+write_parquet(car_ihr_labelled, file.path(output_path, paste("car_ihr_ifr_", source_file_formatted, ".parquet", sep = "")))
 
 rm(car_ihr_vacc, car_ihr_labelled)
 invisible(gc())
@@ -330,48 +349,54 @@ write_target(
   ds_full_enriched,
   "infection_incidence",
   "infection_incidence",
-  file.path("data", "dat_uom_infection.parquet")
+  file.path(output_path, paste("dat_uom_infection_", source_file_formatted, ".parquet", sep = ""))
 )
 
 write_target(
   ds_full_enriched,
   "disease_incidence",
   "disease_incidence",
-  file.path("data", "dat_uom_disease.parquet")
+  file.path(output_path, paste("dat_uom_disease_", source_file_formatted, ".parquet", sep = ""))
 )
 
 write_target(
   ds_full_enriched,
   "admission_incidence",
   "admission_incidence",
-  file.path("data", "dat_uom_admission.parquet")
+  file.path(output_path, paste("dat_uom_admission_", source_file_formatted, ".parquet", sep = ""))
 )
 
 write_target(
   ds_full_enriched,
   "fatality_incidence",
   "fatality_incidence",
-  file.path("data", "dat_uom_fatality.parquet")
+  file.path(output_path, paste("dat_uom_fatality_", source_file_formatted, ".parquet", sep = ""))
 )
+
+unlink(tmp_collapsed_path, recursive = TRUE)
+unlink(tmp_wide_path, recursive = TRUE)
 
 time_elapsed <- toc(log = TRUE, quiet = TRUE)
 cat("Full run took", round(time_elapsed$toc - time_elapsed$tic, 2), "seconds.\n")
 
 # Just some testing stuff
 
-# names(ds_full_wide)
+# names(ds_full)
 
 # ds_full %>%
 #   summarise(n = n()) %>%
 #   collect()
 # # 
 # ds_full %>%
-#   distinct(age_group) %>%
+#   distinct(simulation_index) %>%
 #   collect()
 # 
+# ds_full %>%
+#   summarise(n = n_distinct(simulation_index)) %>%
+#   collect()
+
 # ds_full %>%
 #   mutate(scenario = as.character(scenario)) %>%
 #   distinct(scenario) %>%
 #   collect()
-
 

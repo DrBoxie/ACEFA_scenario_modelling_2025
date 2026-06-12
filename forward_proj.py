@@ -39,7 +39,7 @@ def forw_proj(parallel = True, waning = False, nr_cores = 12):
     if platform.system() == "Windows":
         current_dir = os.getcwd().lower()
     else:
-        current_dir = os.getcwd()
+        current_dir = "/pvol"
 
     if waning:    
         particle_addr = os.path.join(current_dir, "ABC outputs with waning")
@@ -196,7 +196,12 @@ def forw_proj(parallel = True, waning = False, nr_cores = 12):
         
         # Output parquet file for downstream processing
         print("Start output parquet file of full runs.\n")
-        filename_parquet = os.path.join(output_folder_path, "df_incid.parquet")
+        
+        if waning:
+          name_end = "_with_waning.parquet"
+        else:
+          name_end = "_no_waning.parquet"
+        filename_parquet = os.path.join(output_folder_path, "df_incid" + name_end)
         filename_parquet_summed = os.path.join(output_folder_path, "df_incid_summed.parquet")
         filename_parquet_max_timing = os.path.join(output_folder_path, "df_max_timing.parquet")
         
@@ -348,7 +353,7 @@ def plot_corr_for_AR(fig_folder_path, full_parts, sample_keys, highest_AR, lowes
     shift = [40, 190]
     
     if waning:
-        half_life_range = [90, 365]
+        half_life_range = [250, 1825]
     else:
         half_life_range = [365_000, 365_250]
     phi_S1_range = [0.2, 0.8]

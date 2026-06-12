@@ -79,14 +79,15 @@ def classic_abc(parallel = True, nr_cores = 12):
     
     accepted_counter = 0
     
-    nr_particles = 100_000                                                          # Number of samples to produce in the LHS
-    seed_list = rng.integers(0, 1_000_000_000_000,                              # one seed value per unique combination of particle and run nr of that particle
+    # Number of samples to produce in the LHS
+    nr_particles = 70_000
+    seed_list = rng.integers(0, 1_000_000_000_000_000_000,                          # one seed value per unique combination of particle and run nr of that particle
                              size=nr_particles * nr_runs_per_part) 
     
     if platform.system() == "Windows":
         current_dir = os.getcwd().lower()
     else:
-        current_dir = os.getcwd()
+        current_dir = "/pvol"
     
     if waning:    
         fig_folder_path = os.path.join(current_dir, "ABC outputs with waning")
@@ -229,7 +230,7 @@ def list_to_sample_params(waning):
     phi_V1_range = [0.2, 0.8]
     frac_S1_range = [0.2, 0.8]
     if waning:
-      half_life = [90, 365]
+      half_life = [250, 1825]
     else:
       half_life = [365_000, 365_250]
     
