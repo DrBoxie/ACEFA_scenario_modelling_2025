@@ -13,9 +13,16 @@ def init_params():
     
     tau = 1                                                                     # tau-leaping step size.
     
+    term_admin_laiv = "term_2"                                                  # accepted values are "term_1" or "term_2"
+    
     t_start, t_end = 0, 365
     t_iiv_start, t_iiv_end = 59, 226                                            # Start and end date of IIV program
-    t_laiv_start, t_laiv_end = 59, 100                                          # Start and end date of LAIV program
+    if term_admin_laiv == "term_1":
+      t_laiv_start, t_laiv_end = 59, 100                                          # Start and end date of LAIV program
+    elif term_admin_laiv == "term_2":  
+      t_laiv_start, t_laiv_end = 110, 170                                          # Start and end date of LAIV program
+    else:
+      raise ValueError('Error: term_admin_laiv can only take on the values "term_1" or "term_2"!')
     nr_days = t_end - t_start
     
     age_groups = ["<1", "1" ,"2-4", "5-11", "12-17", "18-64", "65-79", "80+"]        # 8 age groups
@@ -103,8 +110,12 @@ def init_params():
         0.81009063, 0.84931351, 0.88319599, 0.91812563, 0.93545698, 0.95122565,
         0.96457128, 0.97785923, 0.9846138 , 0.99014375, 0.99475859, 1.0
         ])
-
-    laiv_rates = np.array([0.16666667, 0.33333333, 0.5, 0.66666667, 0.83333333, 1])    
+  
+    if term_admin_laiv == "term_1":
+      laiv_rates = np.array([0.16666667, 0.33333333, 0.5, 0.66666667, 0.83333333, 1])
+    elif term_admin_laiv == "term_2":
+      laiv_rates = np.array([0.1111111, 0.2222222, 0.3333333, 0.4444444, 0.5555556, 
+      0.6666667,0.7777778, 0.8888889, 1])
     
     daily_vacc_admin = np.zeros((nr_days, nr_age))
     
