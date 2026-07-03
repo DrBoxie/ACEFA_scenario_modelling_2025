@@ -136,7 +136,9 @@ def forw_proj(parallel = True, waning = False, nr_cores = 12):
         print("Time to go to the drawing board.\n")
         
         params = sim.init_params()
-        nr_days, t_start, t_end, colors, labels = itemgetter("nr_days", "t_start", "t_end", "colors", "labels")(params)
+        nr_days, t_start, t_end, colors = itemgetter("nr_days", "t_start", "t_end", "colors")(params)
+        
+        labels = {s: scenarios[s][3] for s in scenarios}
         
         thin_space_formatter = FuncFormatter(lambda x, _: f"{int(x):,}".replace(",", "\u2009"))
         
@@ -585,27 +587,36 @@ def plot_spaghetti_per_scenario(output_folder_path, max_baseline, thin_space_for
     filename_spag = "compare_all_scenarios_spag"
     fig_filepath_spag = os.path.join(output_folder_path, filename_spag)
     
-    nr_rows, nr_cols = 6, 3
+    nr_rows, nr_cols = 9, 3
     fig_compare_all, axes = plt.subplots(nr_rows, nr_cols, figsize=(24, 21), sharex=True)
     axes = axes.flatten() 
     
     ax_map ={
         "A": axes[1], # 0 and 2 are skipped because the top row only contains the baseline figure
-        "B": axes[3],       
-        "C": axes[4],        
-        "D": axes[5],        
-        "E": axes[6],       
-        "F": axes[7],        
-        "G": axes[8],     
-        "H": axes[9],
-        "J": axes[10],
+        "B": axes[3],
+        "F": axes[4],
+        "J": axes[5],
+        "N": axes[6],
+        "R": axes[7],
+        "V": axes[8],
+        "C": axes[9],
+        "G": axes[10],
         "K": axes[11],
-        "L": axes[12],
-        "M": axes[13],
-        "N": axes[14],
-        "P": axes[15],
-        "Q": axes[16],
-        "R": axes[17],
+        "O": axes[12],
+        "S": axes[13],
+        "W": axes[14],
+        "D": axes[15],
+        "H": axes[16],
+        "L": axes[17],
+        "P": axes[18],
+        "T": axes[19],
+        "X": axes[20],
+        "E": axes[21],
+        "I": axes[22],
+        "M": axes[23],
+        "Q": axes[24],
+        "U": axes[25],
+        "Y": axes[26]
         }
     
     tick_label_size = 22

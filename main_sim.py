@@ -13,7 +13,7 @@ def init_params():
     
     tau = 1                                                                     # tau-leaping step size.
     
-    term_admin_laiv = "term_2"                                                  # accepted values are "term_1" or "term_2"
+    term_admin_laiv = "term_1"                                                  # accepted values are "term_1" or "term_2"
     
     t_start, t_end = 0, 365
     t_iiv_start, t_iiv_end = 59, 226                                            # Start and end date of IIV program
@@ -130,23 +130,37 @@ def init_params():
     # format of scenarios dictionary is key = "name" and value = [scenario type, age groups receiving LAIV, coverage percentages for these groups, scenario name]
     scenarios = {
         "A": ["baseline", [], [], "baseline", "Status quo"],
-        "B": ["pessimistic", ["5-11"], [0.4], "pessimistic 5-12", "Pessimistic_LAIV_5-12yo"], 
-        "E": ["pessimistic", ["5-11", "12-17"], [0.4, 0.4], "pessimistic 5-18", "Pessimistic_LAIV_5-18yo"], 
-        "C": ["mid", ["5-11"], [0.6], "mid 5-12", "Mid_LAIV_5-12yo"], 
-        "F": ["mid", ["5-11", "12-17"], [0.6, 0.6], "mid 5-18" ,"Mid_LAIV_5-18yo"], 
-        "D": ["optimistic", ["5-11"], [0.8], "optimistic 5-12", "Optimistic_LAIV_5-12yo"], 
-        "G": ["optimistic", ["5-11", "12-17"], [0.8, 0.8], "optimistic 5-18", "Optimistic_LAIV_5-18yo"],
-        "H": ["mid", ["2-4"], [0.4], "mid 2-5", "Mid_LAIV_2-5yo"], 
-        "J": ["mid", ["2-4", "5-11"], [0.4, 0.6], "mid 2-12", "Mid_LAIV_2-12yo"], 
-        "K": ["mid", ["2-4", "5-11", "12-17"], [0.4, 0.6, 0.6], "mid 2-18", "Mid_LAIV_2-18yo"],
-        "L": ["mid", ["5-11"], [0.4], "mid low 5-12", "Mid_Low_LAIV_5-12yo"], 
-        "M": ["mid", ["5-11", "12-17"], [0.4, 0.4], "mid Low 5-18" ,"Mid_Low_LAIV_5-18yo"],
-        "N": ["mid", ["2-4", "5-11"], [0.4, 0.4], "mid Low 2-12", "Mid_Low_LAIV_2-12yo"],
-        "P": ["mid", ["2-4", "5-11", "12-17"], [0.4, 0.4, 0.4], "mid Low 2-18", "Mid_Low_LAIV_2-18yo"],
-        "Q": ["mid", ["5-11"], [0.2], "mid Extra Low 5-12", "Mid_Extra_Low_LAIV_5-12yo"],
-        "R": ["mid", ["5-11", "12-17"], [0.2, 0.2], "mid Extra Low 5-18", "Mid_Extra_Low_LAIV_5-18yo"],
+        "B": ["pessimistic", ["5-11"], [0.2], "pessimistic low 5-12", "Pessimistic_cover20_LAIV_5-12yo"], 
+        "C": ["pessimistic", ["5-11"], [0.4], "pessimistic medium 5-12", "Pessimistic_cover40_LAIV_5-12yo"], 
+        "D": ["pessimistic", ["5-11"], [0.6], "pessimistic high 5-12", "Pessimistic_cover60_LAIV_5-12yo"], 
+        "E": ["pessimistic", ["5-11"], [0.8], "pessimistic very high 5-12", "Pessimistic_cover80_LAIV_5-12yo"], 
+        "F": ["central", ["5-11"], [0.2], "central low 5-12", "Central_cover20_LAIV_5-12yo"], 
+        "G": ["central", ["5-11"], [0.4], "central medium 5-12", "Central_cover40_LAIV_5-12yo"], 
+        "H": ["central", ["5-11"], [0.6], "central high 5-12", "Central_cover60_LAIV_5-12yo"], 
+        "I": ["central", ["5-11"], [0.8], "central very high 5-12", "Central_cover80_LAIV_5-12yo"], 
+        "J": ["optimistic", ["5-11"], [0.2], "optimistic low 5-12", "Optimistic_cover20_LAIV_5-12yo"], 
+        "K": ["optimistic", ["5-11"], [0.4], "optimistic medium 5-12", "Optimistic_cover40_LAIV_5-12yo"], 
+        "L": ["optimistic", ["5-11"], [0.6], "optimistic high 5-12", "Optimistic_cover60_LAIV_5-12yo"], 
+        "M": ["optimistic", ["5-11"], [0.8], "optimistic very high 5-12", "Optimistic_cover80_LAIV_5-12yo"], 
+        "N": ["pessimistic", ["5-11", "12-17"], [0.2, 0.2], "pessimistic low 5-18", "Pessimistic_cover20_LAIV_5-18yo"], 
+        "O": ["pessimistic", ["5-11", "12-17"], [0.4, 0.4], "pessimistic medium 5-18", "Pessimistic_cover40_LAIV_5-18yo"], 
+        "P": ["pessimistic", ["5-11", "12-17"], [0.6, 0.6], "pessimistic high 5-18", "Pessimistic_cover60_LAIV_5-18yo"], 
+        "Q": ["pessimistic", ["5-11", "12-17"], [0.8, 0.8], "pessimistic very high 5-18", "Pessimistic_cover80_LAIV_5-18yo"], 
+        "R": ["central", ["5-11", "12-17"], [0.2, 0.2], "central low 5-18", "Central_cover20_LAIV_5-18yo"], 
+        "S": ["central", ["5-11", "12-17"], [0.4, 0.4], "central medium 5-18", "Central_cover40_LAIV_5-18yo"], 
+        "T": ["central", ["5-11", "12-17"], [0.6, 0.6], "central high 5-18", "Central_cover60_LAIV_5-18yo"], 
+        "U": ["central", ["5-11", "12-17"], [0.8, 0.8], "central very high 5-18", "Central_cover80_LAIV_5-18yo"], 
+        "V": ["optimistic", ["5-11", "12-17"], [0.2, 0.2], "optimistic low 5-18", "Optimistic_cover20_LAIV_5-18yo"], 
+        "W": ["optimistic", ["5-11", "12-17"], [0.4, 0.4], "optimistic medium 5-18", "Optimistic_cover40_LAIV_5-18yo"], 
+        "X": ["optimistic", ["5-11", "12-17"], [0.6, 0.6], "optimistic high 5-18", "Optimistic_cover60_LAIV_5-18yo"], 
+        "Y": ["optimistic", ["5-11", "12-17"], [0.8, 0.8], "optimistic very high 5-18", "Optimistic_cover80_LAIV_5-18yo"], 
+        "Z": ["central", ["2-4"], [0.4], "central medium 2-5", "Central_cover40_LAIV_2-5yo"], 
+        # "J": ["mid", ["2-4", "5-11"], [0.4, 0.6], "mid 2-12", "Mid_LAIV_2-12yo"], 
+        # "K": ["mid", ["2-4", "5-11", "12-17"], [0.4, 0.6, 0.6], "mid 2-18", "Mid_LAIV_2-18yo"],
+        # "N": ["mid", ["2-4", "5-11"], [0.4, 0.4], "mid Low 2-12", "Mid_Low_LAIV_2-12yo"],
+        # "P": ["mid", ["2-4", "5-11", "12-17"], [0.4, 0.4, 0.4], "mid Low 2-18", "Mid_Low_LAIV_2-18yo"],
         }
-    
+
     colors = {
         "A": "black",
         "B": "#1B9E77",
@@ -156,34 +170,25 @@ def init_params():
         "F": "#66A61E",
         "G": "#E6AB02",
         "H": "#A6761D",
+        "I": "#E31A1C",
         "J": "#666666",
         "K": "#1F78B4",
         "L": "#B15928",
         "M": "#A6CEE3",
         "N": "#B2DF8A",
+        "O": "#FB8072",
         "P": "#FB9A99",
         "Q": "#FDBF6F",
-        "R": "#CAB2D6"
-        }
-    
-    labels = {
-        "A": "baseline",
-        "B": "pessimistic 5-12", 
-        "E": "pessimistic 5-18", 
-        "C": "central 5-12", 
-        "F": "central 5-18", 
-        "H": "central 2-5", 
-        "J": "central 2-12",  
-        "K": "central 2-18", 
-        "D": "optimistic 5-12", 
-        "G": "optimistic 5-18",
-        "L": "low 5-12",
-        "M": "low 5-18",
-        "N": "low 2-12",
-        "P": "low 2-18",
-        "Q": "extra low 5-12",
-        "R": "extra low 5-18",
-        }
+        "R": "#CAB2D6",
+        "S": "#8DD3C7",
+        "T": "#FFFFB3",
+        "U": "#BEBADA",
+        "V": "#80B1D3",
+        "W": "#FCCDE5",
+        "X": "#BC80BD",
+        "Y": "#CCEBC5",
+        "Z": "#FFED6F"
+    }
     
     params = {"tau": tau,
               "t_start": t_start,
@@ -223,8 +228,7 @@ def init_params():
               "laiv_rates": laiv_rates,
               "target_cover": target_cover,
               "scenarios": scenarios,
-              "colors": colors,
-              "labels": labels
+              "colors": colors
               }
     
     return params
