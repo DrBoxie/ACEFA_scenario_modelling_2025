@@ -29,7 +29,7 @@ def forw_proj(parallel = True, waning = False, nr_cores = 12):
     
     print("Let's get this thing on the road...\n")
     
-    nr_proj_per_part = 50
+    nr_proj_per_part = 2
     seed = 790202       # Used whenever multiple runs are done for each combo of particle and scenario
     
     output_figs = True
@@ -681,7 +681,7 @@ def update_scenario_params(scenario, params, pes_phis, mid_phis, opt_phis):
     if scenario[0] == "pessimistic":
         phi_V0[laiv_idx] = pes_phis[0]
         phi_V1[laiv_idx] = pes_phis[1]
-    elif scenario[0] == "mid":
+    elif scenario[0] == "central":
         phi_V0[laiv_idx] = mid_phis[0]
         phi_V1[laiv_idx] = mid_phis[1]
     elif scenario[0] == "optimistic":

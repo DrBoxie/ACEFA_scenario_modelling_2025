@@ -14,7 +14,7 @@ import platform
 
 new_phis = True
 local_parallel = True
-local_waning = False
+local_waning = True
 
 def laiv_phis(new_phis = True, parallel = True, waning = False, nr_cores = 12):
     
@@ -28,7 +28,7 @@ def laiv_phis(new_phis = True, parallel = True, waning = False, nr_cores = 12):
 
     VE_accept_range = {
         "pessimistic": [0.38, 0.50],
-        "mid" : [0.44, 0.69],
+        "central" : [0.44, 0.69],
         "optimistic": [0.63, 0.88]
         }
 
@@ -65,7 +65,7 @@ def laiv_phis(new_phis = True, parallel = True, waning = False, nr_cores = 12):
     nr_parts = len(particles)
     seed_list = np.array(pd.read_csv(SEED_IN, index_col = 0))
     
-    # Generate seeds we will use for the generation of the phi's (the first element of the tuple is for the pessimistic scenario, the second for the mid scenario, and the third for the optimistic one)
+    # Generate seeds we will use for the generation of the phi's (the first element of the tuple is for the pessimistic scenario, the second for the central scenario, and the third for the optimistic one)
     phi_seed_list = list(zip(rng2.integers(0, 1_000_000_000_000, size = nr_parts), rng2.integers(0, 1_000_000_000_000, size = nr_parts), rng2.integers(0, 1_000_000_000_000, size = nr_parts)))
     
     params = sim.init_params()
@@ -121,7 +121,7 @@ def individual_part_phi_calc(idx, part, run_seed, phi_seeds, params, part_vars, 
     list_scenarios = []
     list_accepted = []
     
-    for s in ["pessimistic", "mid", "optimistic"]:
+    for s in ["pessimistic", "central", "optimistic"]:
         accepted = False
         
         params = abc.update_params(params, part, part_vars)
@@ -130,7 +130,7 @@ def individual_part_phi_calc(idx, part, run_seed, phi_seeds, params, part_vars, 
         
         if s == "pessimistic":
             rng2 = np.random.default_rng(phi_seeds[0])
-        elif s == "mid":
+        elif s == "central":
             rng2 = np.random.default_rng(phi_seeds[1])
         elif s == "optimistic":
             rng2 = np.random.default_rng(phi_seeds[2])
@@ -185,7 +185,7 @@ def individual_part_phi_calc(idx, part, run_seed, phi_seeds, params, part_vars, 
                 accepted = True
                 if s == "pessimistic":
                     acc_pes_phi = [phi0, phi1]
-                elif s == "mid":
+                elif s == "central":
                     acc_mid_phi = [phi0, phi1]
                 else:
                     acc_opt_phi = [phi0, phi1]
