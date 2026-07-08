@@ -60,7 +60,7 @@ import platform
 
 ABC_output_results = True                                                       # Suppress outputting figures and dataframes for ABC (if False) for quicker runs
 
-nr_runs_per_part = 2
+nr_runs_per_part = 10
 accept_perc = 0.9
 nr_allowed_rejected = nr_runs_per_part - int(np.ceil(nr_runs_per_part * accept_perc))
 
@@ -80,7 +80,7 @@ def classic_abc(parallel = True, nr_cores = 12):
     accepted_counter = 0
     
     # Number of samples to produce in the LHS
-    nr_particles = 700
+    nr_particles = 70_000
     seed_list = rng.integers(0, 1_000_000_000_000_000_000,                          # one seed value per unique combination of particle and run nr of that particle
                              size=nr_particles * nr_runs_per_part) 
     
@@ -201,17 +201,18 @@ def classic_abc(parallel = True, nr_cores = 12):
         acc_inf_inc_df = pd.DataFrame(inf_inc_accepted)
         acc_inf_inc_df.to_csv(os.path.join(fig_folder_path, "acc_inf_inc.csv"), index=False)
 
-        fig_spag_plot = False
-        fig_corr_accepted_particles = False
-        fig_inf_per_comp_for_age_groups = False
-        VE_plots = False
+        fig_spag_plot = True
+        fig_corr_accepted_particles = True
+        fig_inf_per_comp_for_age_groups = True
+        VE_plots = True
         VE_comparison_plot = False
-        boxplot_vacc_post_inf = False
-        R0_plot = False
+        boxplot_vacc_post_inf = True
+        R0_plot = True
+        three_panel_plot = True
         
         plt_crt.outputs(list_prev, list_inc, list_AR, list_VE, list_VE_alt, params, list_accepted_particles, list_vacc_post_inf, peak_time_range, 
                         AR_range, VE_range, sample_array, sample_keys, fig_spag_plot, fig_inf_per_comp_for_age_groups, VE_comparison_plot,
-                        fig_corr_accepted_particles, VE_plots, boxplot_vacc_post_inf, params_to_sample, fig_folder_path, parallel, nr_cores, R0_plot, list_R0_acc, list_R0_rej)
+                        fig_corr_accepted_particles, VE_plots, boxplot_vacc_post_inf, three_panel_plot, params_to_sample, fig_folder_path, parallel, nr_cores, R0_plot, list_R0_acc, list_R0_rej)
         
 def list_to_sample_params(waning):    
    
@@ -441,7 +442,7 @@ if __name__ == "__main__":
     # end_time_laiv = time.time()
     # elapsed = end_time_laiv - start_time_laiv
     # print(f"Simulation for new phi values elapsed time: {elapsed:.3f} seconds\n")
-    print("Calculation of phi's is done! Booyah!!!\n")
+    # print("Calculation of phi's is done! Booyah!!!\n")
     
     # start_time_forw = time.time()
     

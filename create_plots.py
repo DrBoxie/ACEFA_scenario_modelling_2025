@@ -49,7 +49,6 @@ def VE_plots(VE_list, VE_range, list_accepted_particles, fig_folder_path):
 
     accept_lower, accept_upper = min(VE_range), max(VE_range)
     
-    # Separate data
     data_to_plot = [accepted_VEs, rejected_VEs]
     labels = ['Accepted', 'Rejected']
     colors = ['royalblue', 'silver']
@@ -63,11 +62,10 @@ def VE_plots(VE_list, VE_range, list_accepted_particles, fig_folder_path):
     ax.axhspan(accept_lower, accept_upper, color='orange', alpha=0.4, zorder=0, label='Acceptance range')
     
     rng = np.random.default_rng(246)                                            # rng only used to create horizontal jitter on the dots
-    for i, y in enumerate(data_to_plot):
-        jitter_accepted = rng.normal(1, 0.06, size=sum(accepted_mask))
-        jitter_rejected = rng.normal(2, 0.06, size=sum(~accepted_mask))
-        ax.scatter(jitter_accepted, VEs[accepted_mask], color='royalblue', alpha=0.4, s=5, label='Accepted points')
-        ax.scatter(jitter_rejected, VEs[~accepted_mask], color='silver', alpha=0.4, s=5, label='Rejected points')
+    jitter_accepted = rng.normal(1, 0.06, size=sum(accepted_mask))
+    jitter_rejected = rng.normal(2, 0.06, size=sum(~accepted_mask))
+    ax.scatter(jitter_accepted, VEs[accepted_mask], color='royalblue', alpha=0.4, s=5, label='Accepted points')
+    ax.scatter(jitter_rejected, VEs[~accepted_mask], color='silver', alpha=0.4, s=5, label='Rejected points')
     
     ax.set_ylabel("Vaccine effectiveness (VE)")
     ax.set_title("Accepted vs rejected VE's")
@@ -196,6 +194,102 @@ def VE_comparison_plot(VE_list, VE_alt_list, list_accepted_particles, AR_list, f
     fig.savefig(fig_filepath_comparison_VE)
     plt.close(fig)
     
+def plot_three_panels(incidences, VE_list, VE_range, list_accepted_particles, parallel, nr_cores, peak_time_range, AR_range, params, thin_space_formatter, fig_folder_path, days, nr_days, I_comps, t_start, t_end):
+    
+    fig_panel, axes = plt.subplots(1, 3, figsize=(18, 6), gridspec_kw={"width_ratios": [3, 3, 1]})
+
+    ax_spag_inf_inc = axes[0]
+    ax_spag_cumul_inf = axes[1]
+    ax_VE = axes[2]
+    
+    if parallel:
+        with ProcessPoolExecutor(max_workers=nr_cores) as executor:
+            futures = [executor.submit(compute_spag_line, i, incidences[i], I_comps) for i in range(len(incidences))]
+            results = [f.result() for f in as_completed(futures)]
+    else:
+        results = []
+        for i, inc_dict in enumerate(incidences):
+            # Total infectious incidence = sum over all infectious states and ages
+            total_inf_inc = np.sum([np.sum(inc_dict[c], axis=0) for c in I_comps], axis=0)
+            cumul_inf = np.cumsum(total_inf_inc)
+            results.append((i, total_inf_inc, cumul_inf))
+            
+    results.sort(key=lambda x: (x[0] in list_accepted_particles, x[0]))
+    
+    for idx, total_inf, cumul_inf in results:
+        color = "royalblue" if idx in list_accepted_particles else "silver"
+        linewidth = 1.3 if idx in list_accepted_particles else 0.5
+        alpha = 0.6 if idx in list_accepted_particles else 0.3
+        label = "Accepted particle" if idx == list_accepted_particles[0] else ""
+        
+        ax_spag_inf_inc.plot(days, total_inf, color=color, linewidth=linewidth, alpha=alpha, label=label)
+        ax_spag_cumul_inf.plot(days, cumul_inf, color=color, linewidth=linewidth, alpha=alpha, label=label)
+    
+    style_spaghetti_plot(params, ax_spag_inf_inc, cumul = False, fig = fig_panel, accept_rng = peak_time_range, t_start = t_start, t_end = t_end, thin_space_formatter = thin_space_formatter, title=f"Infection incidence\n({len(list_accepted_particles)} out of {len(incidences):,} particles accepted)", ylab = "Daily Infection Incidence", vert_or_horiz = "vert")
+    style_spaghetti_plot(params, ax_spag_cumul_inf, cumul = True, fig = fig_panel, accept_rng = AR_range, t_start = t_start, t_end = t_end, thin_space_formatter = thin_space_formatter, title=f"Cumulative infection incidence\n({len(list_accepted_particles)} out of {len(incidences):,} particles accepted)", ylab = "Cumulative Infection Incidence", vert_or_horiz = "horiz")
+    
+    ax_spag_inf_inc.set_title("Daily infection incidence")
+    ax_spag_cumul_inf.set_title("Cumulative infection incidence")
+    
+    VEs = np.array(VE_list)
+    accepted_mask = np.zeros(len(VEs), dtype=bool)
+    accepted_mask[list_accepted_particles] = True
+
+    accept_lower, accept_upper = min(VE_range), max(VE_range)
+    
+    ax_VE.axhspan(accept_lower, accept_upper, color='orange', alpha=0.4, zorder=0, label='Acceptance range')
+    
+    rng = np.random.default_rng(246)                                            # rng only used to create horizontal jitter on the dots
+    
+    jitter_accepted = rng.normal(1, 0.06, size=sum(accepted_mask))
+    jitter_rejected = rng.normal(1, 0.06, size=sum(~accepted_mask))
+    ax_VE.scatter(jitter_accepted, VEs[accepted_mask], color='royalblue', alpha=0.4, s=5, label='Accepted particle')
+    ax_VE.scatter(jitter_rejected, VEs[~accepted_mask], color='silver', alpha=0.3, s=4)
+    
+    ax_VE.set_ylabel("Vaccine effectiveness")
+    ax_VE.set_title("Vaccine effectiveness")
+    ax_VE.set_xlim(0.7, 1.3)
+    ax_VE.set_xticks([])
+    
+    for ax in axes:
+        leg = ax.get_legend()
+        if leg is not None:
+            leg.remove()
+    
+    # Collect legend entries
+    handles, labels = [], []
+    for ax in axes:
+        h, l = ax.get_legend_handles_labels()
+        handles.extend(h)
+        labels.extend(l)
+    
+    by_label = dict(zip(labels, handles))
+    
+    # Reserve space at the bottom for shared legend
+    fig_panel.subplots_adjust(bottom=0.19)
+    
+    # Move only the rightmost panel left
+    pos = ax_VE.get_position()
+    ax_VE.set_position([pos.x0 - 0.02, pos.y0, pos.width, pos.height])
+    
+    # Shared legend
+    fig_panel.legend(
+        by_label.values(),
+        by_label.keys(),
+        loc="lower center",
+        ncol=len(by_label),
+        bbox_to_anchor=(0.5, 0.02)
+    )
+    
+    fig_panel.suptitle("ABC overview panel")
+    
+    fig_panel.savefig(
+        os.path.join(fig_folder_path, "Spagetthi_particle_inf_panel.png"), 
+        dpi=300, bbox_inches="tight")
+        
+    # fig_panel.savefig(os.path.join(fig_folder_path, "Spagetthi_particle_inf_panel.png"), dpi=300)
+    plt.close(fig_panel)
+
 def compute_spag_line(idx, incidences, I_comps):
     total_inf = np.sum([np.sum(incidences[c], axis=0) for c in I_comps], axis=0)
     cumul_inf = np.cumsum(total_inf)
@@ -421,7 +515,7 @@ def plot_selected_parts_spag(params, incidences, nr_parts, nr_runs_per_part, par
 
 def outputs(prevalences, incidences, AR_list, VE_list, VE_alt_list, params, list_accepted_particles, list_vacc_post_inf, peak_time_range, AR_range, VE_range,
             full_parts, sample_keys, fig_spag_plot, fig_inf_per_comp_for_age_groups, fig_VE_comparison_plot, fig_corr_accepted_particles, fig_VE_plots, boxplot_vacc_post_inf, 
-            sample_ranges, fig_folder_path, parallel, nr_cores, R0_plot, list_R0_acc, list_R0_rej, selected_spag_plot = False, list_selected_parts = []): 
+            three_panel_plot, sample_ranges, fig_folder_path, parallel, nr_cores, R0_plot, list_R0_acc, list_R0_rej, selected_spag_plot = False, list_selected_parts = []): 
     
     print("Plotting figures:\n")
     
@@ -657,6 +751,17 @@ def outputs(prevalences, incidences, AR_list, VE_list, VE_alt_list, params, list
         end_R0_plot = time.time()
         elapsed = end_R0_plot - start_R0_plot
         print(f"Boxplot of R0 took {elapsed:.3f} seconds to produce.\n")
+    
+    if three_panel_plot:
+        
+        start_three_panel_plot = time.time()
+        
+        plot_three_panels(incidences, VE_list, VE_range, list_accepted_particles, parallel, nr_cores, peak_time_range, AR_range, params, thin_space_formatter, fig_folder_path, days, nr_days, I_comps, t_start, t_end)
+        print("Three panel plot done.\n")
+        
+        end_three_panel_plot = time.time()
+        elapsed = end_three_panel_plot - start_three_panel_plot
+        print(f"Three panel plot took {elapsed:.3f} seconds to produce.\n")
         
     if selected_spag_plot:
         # used to plot specific particle spaghetti plots rather than all of them, which is done in plot_selected_particles.py
