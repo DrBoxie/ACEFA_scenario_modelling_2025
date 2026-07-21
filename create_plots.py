@@ -33,7 +33,8 @@ def style_spaghetti_plot(params, ax, cumul = False, fig = None, accept_rng = Non
             line.set_linewidth(2.5)
             line.set_alpha(1)
     ax.grid(False)
-    fig.suptitle(title)
+    if title is not None:
+      fig.suptitle(title)
     fig.tight_layout()
 
 def VE_plots(VE_list, VE_range, list_accepted_particles, fig_folder_path):
@@ -218,15 +219,15 @@ def plot_three_panels(incidences, VE_list, VE_range, list_accepted_particles, pa
     
     for idx, total_inf, cumul_inf in results:
         color = "royalblue" if idx in list_accepted_particles else "silver"
-        linewidth = 1.3 if idx in list_accepted_particles else 0.5
-        alpha = 0.6 if idx in list_accepted_particles else 0.3
+        linewidth = 0.8 if idx in list_accepted_particles else 0.2
+        alpha = 0.05 if idx in list_accepted_particles else 0.005
         label = "Accepted particle" if idx == list_accepted_particles[0] else ""
         
         ax_spag_inf_inc.plot(days, total_inf, color=color, linewidth=linewidth, alpha=alpha, label=label)
         ax_spag_cumul_inf.plot(days, cumul_inf, color=color, linewidth=linewidth, alpha=alpha, label=label)
     
-    style_spaghetti_plot(params, ax_spag_inf_inc, cumul = False, fig = fig_panel, accept_rng = peak_time_range, t_start = t_start, t_end = t_end, thin_space_formatter = thin_space_formatter, title=f"Infection incidence\n({len(list_accepted_particles)} out of {len(incidences):,} particles accepted)", ylab = "Daily Infection Incidence", vert_or_horiz = "vert")
-    style_spaghetti_plot(params, ax_spag_cumul_inf, cumul = True, fig = fig_panel, accept_rng = AR_range, t_start = t_start, t_end = t_end, thin_space_formatter = thin_space_formatter, title=f"Cumulative infection incidence\n({len(list_accepted_particles)} out of {len(incidences):,} particles accepted)", ylab = "Cumulative Infection Incidence", vert_or_horiz = "horiz")
+    style_spaghetti_plot(params, ax_spag_inf_inc, cumul = False, fig = fig_panel, accept_rng = peak_time_range, t_start = t_start, t_end = t_end, thin_space_formatter = thin_space_formatter, ylab = "Daily Infection Incidence", vert_or_horiz = "vert")
+    style_spaghetti_plot(params, ax_spag_cumul_inf, cumul = True, fig = fig_panel, accept_rng = AR_range, t_start = t_start, t_end = t_end, thin_space_formatter = thin_space_formatter, ylab = "Cumulative Infection Incidence", vert_or_horiz = "horiz")
     
     ax_spag_inf_inc.set_title("Daily infection incidence")
     ax_spag_cumul_inf.set_title("Cumulative infection incidence")
@@ -243,12 +244,13 @@ def plot_three_panels(incidences, VE_list, VE_range, list_accepted_particles, pa
     
     jitter_accepted = rng.normal(1, 0.06, size=sum(accepted_mask))
     jitter_rejected = rng.normal(1, 0.06, size=sum(~accepted_mask))
-    ax_VE.scatter(jitter_accepted, VEs[accepted_mask], color='royalblue', alpha=0.4, s=5, label='Accepted particle')
-    ax_VE.scatter(jitter_rejected, VEs[~accepted_mask], color='silver', alpha=0.3, s=4)
+    ax_VE.scatter(jitter_rejected, VEs[~accepted_mask], color='silver', alpha=0.1, s=4)
+    ax_VE.scatter(jitter_accepted, VEs[accepted_mask], color='royalblue', alpha=0.3, s=5, label='Accepted particle')
     
     ax_VE.set_ylabel("Vaccine effectiveness")
     ax_VE.set_title("Vaccine effectiveness")
     ax_VE.set_xlim(0.7, 1.3)
+    ax_VE.set_ylim(0, 1.03)
     ax_VE.set_xticks([])
     
     for ax in axes:
@@ -281,13 +283,10 @@ def plot_three_panels(incidences, VE_list, VE_range, list_accepted_particles, pa
         bbox_to_anchor=(0.5, 0.02)
     )
     
-    fig_panel.suptitle("ABC overview panel")
-    
     fig_panel.savefig(
         os.path.join(fig_folder_path, "Spagetthi_particle_inf_panel.png"), 
         dpi=300, bbox_inches="tight")
-        
-    # fig_panel.savefig(os.path.join(fig_folder_path, "Spagetthi_particle_inf_panel.png"), dpi=300)
+      
     plt.close(fig_panel)
 
 def compute_spag_line(idx, incidences, I_comps):

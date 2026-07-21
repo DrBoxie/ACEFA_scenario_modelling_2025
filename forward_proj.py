@@ -24,12 +24,13 @@ plt.close("all")                                                                
 
 local_parallel = True
 local_waning = True
+local_vaccination_term = "term_1"
 
-def forw_proj(parallel = True, waning = False, nr_cores = 12):
+def forw_proj(parallel = True, waning = False, vaccination_term = "term_1" , nr_cores = 12):
     
     print("Let's get this thing on the road...\n")
     
-    nr_proj_per_part = 2
+    nr_proj_per_part = 50
     seed = 790202       # Used whenever multiple runs are done for each combo of particle and scenario
     
     output_figs = True
@@ -69,7 +70,7 @@ def forw_proj(parallel = True, waning = False, nr_cores = 12):
     
     os.makedirs(output_folder_path, exist_ok=True)
     
-    params = sim.init_params()
+    params = sim.init_params(vaccination_term)
     scenarios = params["scenarios"]
     
     # short_scenario_names = {k: scenarios[k][3] for k in scenarios}
@@ -135,7 +136,7 @@ def forw_proj(parallel = True, waning = False, nr_cores = 12):
     if output_figs:
         print("Time to go to the drawing board.\n")
         
-        params = sim.init_params()
+        params = sim.init_params(vaccination_term)
         nr_days, t_start, t_end, colors = itemgetter("nr_days", "t_start", "t_end", "colors")(params)
         
         labels = {s: scenarios[s][3] for s in scenarios}
@@ -769,7 +770,7 @@ if __name__ == "__main__":
     
     start_time = time.time()
     
-    forw_proj(parallel  = local_parallel, waning = local_waning)
+    forw_proj(parallel  = local_parallel, waning = local_waning, vaccination_term = local_vaccination_term)
     
     end_time = time.time()
     elapsed = end_time - start_time

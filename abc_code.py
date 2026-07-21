@@ -49,7 +49,7 @@ import pandas as pd
 import main_sim as sim
 import lhs_sampler as lhs
 import create_plots as plt_crt
-# import laiv_phis as laiv
+import laiv_phis as laiv
 # import forward_proj as forw
 import copy
 from operator import itemgetter
@@ -68,6 +68,7 @@ paral = True
 cores = 12
 
 waning = True
+vaccination_term = "term_1"                                                     # accepted values are "term_1" or "term_2"
 
 def classic_abc(parallel = True, nr_cores = 12):
     
@@ -106,7 +107,7 @@ def classic_abc(parallel = True, nr_cores = 12):
     # each with their corresponding upper and lower bounds
     # The third function returns an array where each row corresponds to 
     # to one set of sampled parameters (i.e. a particle) from the LHS
-    params = sim.init_params()    
+    params = sim.init_params(vaccination_term)                                  
     nr_days, nr_age, pop, I_comps = itemgetter("nr_days", "nr_age", "tot_pop", "I_comps")(params)
     
     params_to_sample = list_to_sample_params(waning)
@@ -435,18 +436,18 @@ if __name__ == "__main__":
     print(f"Total initial ABC elapsed time: {elapsed:.3f} seconds\n")
     print("Simulation is done! Huzzah!!!\n")
     
-    # start_time_laiv = time.time()
+    start_time_laiv = time.time()
 
-    # laiv.laiv_phis(parallel = paral, waning = waning, nr_cores = cores)
+    laiv.laiv_phis(parallel = paral, waning = waning, nr_cores = cores)
 
-    # end_time_laiv = time.time()
-    # elapsed = end_time_laiv - start_time_laiv
-    # print(f"Simulation for new phi values elapsed time: {elapsed:.3f} seconds\n")
-    # print("Calculation of phi's is done! Booyah!!!\n")
+    end_time_laiv = time.time()
+    elapsed = end_time_laiv - start_time_laiv
+    print(f"Simulation for new phi values elapsed time: {elapsed:.3f} seconds\n")
+    print("Calculation of phi's is done! Booyah!!!\n")
     
     # start_time_forw = time.time()
     
-    # forw.forw_proj(parallel = paral, nr_cores = cores)
+    # forw.forw_proj(parallel = paral, vaccination_term = vaccination_term,  nr_cores = cores)
     
     # end_time = time.time()
     # elapsed = end_time - start_time_forw

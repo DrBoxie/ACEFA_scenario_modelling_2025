@@ -9,11 +9,9 @@ def main(params, states, incidences, rng, new_phis = False, laiv_ages = []):
                 
     return prevs, R0_series, inc, vacc_post_inf
 
-def init_params():
+def init_params(term_admin_laiv = "term_1"):
     
     tau = 1                                                                     # tau-leaping step size.
-    
-    term_admin_laiv = "term_1"                                                  # accepted values are "term_1" or "term_2"
     
     t_start, t_end = 0, 365
     t_iiv_start, t_iiv_end = 59, 226                                            # Start and end date of IIV program

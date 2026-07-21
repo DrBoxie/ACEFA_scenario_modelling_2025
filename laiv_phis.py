@@ -15,8 +15,9 @@ import platform
 new_phis = True
 local_parallel = True
 local_waning = True
+local_vaccination_term = "term_2"
 
-def laiv_phis(new_phis = True, parallel = True, waning = False, nr_cores = 12):
+def laiv_phis(new_phis = True, parallel = True, waning = False, vaccination_term = "term_1", nr_cores = 12):
     
     print("\nStarting the simulation.\n")
     
@@ -68,7 +69,7 @@ def laiv_phis(new_phis = True, parallel = True, waning = False, nr_cores = 12):
     # Generate seeds we will use for the generation of the phi's (the first element of the tuple is for the pessimistic scenario, the second for the central scenario, and the third for the optimistic one)
     phi_seed_list = list(zip(rng2.integers(0, 1_000_000_000_000, size = nr_parts), rng2.integers(0, 1_000_000_000_000, size = nr_parts), rng2.integers(0, 1_000_000_000_000, size = nr_parts)))
     
-    params = sim.init_params()
+    params = sim.init_params(vaccination_term)
     nr_days, nr_age, pop, t_end, unvacc_comps, vacc_comps, I_comps = itemgetter("nr_days", "nr_age", "tot_pop", "t_end", "Unvacc_comps", "Vacc_comps", "I_comps")(params)    
     
     # Initialise state for simulation
@@ -210,7 +211,7 @@ def run_particle_wrapper(args):
 if __name__ == "__main__":
     
     start_time = time.time()
-    laiv_phis(parallel = local_parallel, waning = local_waning)
+    laiv_phis(parallel = local_parallel, waning = local_waning, vaccination_term = "local_vaccination_term")
     
     end_time = time.time()
     elapsed = end_time - start_time

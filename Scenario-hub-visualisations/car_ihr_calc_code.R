@@ -1,5 +1,6 @@
 
 source_file_type <- "with waning"
+vaccination_term <- "term2 vaccination"
 source_file_formatted <- gsub("\\s+", "_", source_file_type)
 
 if (.Platform$OS.type == "windows"){
@@ -9,7 +10,7 @@ if (.Platform$OS.type == "windows"){
 } else{
   setwd("/home/ubuntu/R_code")
   output_root <- "/pvol"
-  source_file_path <- file.path(output_root, paste("Forward projection", source_file_type), paste("df_incid_", source_file_formatted, ".parquet", sep="") )
+  source_file_path <- file.path(output_root, paste("Forward projection", source_file_type, vaccination_term), paste("df_incid_", source_file_formatted, ".parquet", sep="") )
 }
 
 library(tidyverse)
@@ -61,21 +62,31 @@ add_age_and_scenario_labels <- function(df){
       ),
       scenario = case_when(
         scenario_index == 1 ~ "Status_quo",
-        scenario_index == 2 ~ "Pessimistic_LAIV_5-12yo",
-        scenario_index == 3 ~ "Pessimistic_LAIV_5-18yo",
-        scenario_index == 4 ~ "Mid_LAIV_5-12yo",
-        scenario_index == 5 ~ "Mid_LAIV_5-18yo",
-        scenario_index == 6 ~ "Optimistic_LAIV_5-12yo",
-        scenario_index == 7 ~ "Optimistic_LAIV_5-18yo",
-        scenario_index == 8 ~ "Mid_LAIV_2-5yo",
-        scenario_index == 9 ~ "Mid_LAIV_2-12yo",
-        scenario_index == 10 ~ "Mid_LAIV_2-18yo",
-        scenario_index == 11 ~ "Mid_Low_LAIV_5-12yo",
-        scenario_index == 12 ~ "Mid_Low_LAIV_5-18yo",
-        scenario_index == 13 ~ "Mid_Low_LAIV_2-12yo",
-        scenario_index == 14 ~ "Mid_Low_LAIV_2-18yo",
-        scenario_index == 15 ~ "Mid_Extra_Low_LAIV_5-12yo",
-        scenario_index == 16 ~ "Mid_Extra_Low_LAIV_5-18yo"
+        scenario_index == 2 ~ "Pessimistic_cover20_LAIV_5-12yo",
+        scenario_index == 3 ~ "Pessimistic_cover40_LAIV_5-12yo",
+        scenario_index == 4 ~ "Pessimistic_cover60_LAIV_5-12yo",
+        scenario_index == 5 ~ "Pessimistic_cover80_LAIV_5-12yo",
+        scenario_index == 6 ~ "Pessimistic_cover20_LAIV_5-18yo",
+        scenario_index == 7 ~ "Pessimistic_cover40_LAIV_5-18yo",
+        scenario_index == 8 ~ "Pessimistic_cover60_LAIV_5-18yo",
+        scenario_index == 9 ~ "Pessimistic_cover80_LAIV_5-18yo",
+        scenario_index == 10 ~ "Central_cover20_LAIV_5-12yo",
+        scenario_index == 11 ~ "Central_cover40_LAIV_5-12yo",
+        scenario_index == 12 ~ "Central_cover60_LAIV_5-12yo",
+        scenario_index == 13 ~ "Central_cover80_LAIV_5-12yo",
+        scenario_index == 14 ~ "Central_cover20_LAIV_5-18yo",
+        scenario_index == 15 ~ "Central_cover40_LAIV_5-18yo",
+        scenario_index == 16 ~ "Central_cover60_LAIV_5-18yo",
+        scenario_index == 17 ~ "Central_cover80_LAIV_5-18yo",
+        scenario_index == 18 ~"Optimistic_cover20_LAIV_5-12yo",
+        scenario_index == 19 ~ "Optimistic_cover40_LAIV_5-12yo",
+        scenario_index == 20 ~ "Optimistic_cover60_LAIV_5-12yo",
+        scenario_index == 21 ~ "Optimistic_cover80_LAIV_5-12yo",
+        scenario_index == 22 ~ "Optimistic_cover20_LAIV_5-18yo",
+        scenario_index == 23 ~ "Optimistic_cover40_LAIV_5-18yo",
+        scenario_index == 24 ~ "Optimistic_cover60_LAIV_5-18yo",
+        scenario_index == 25 ~ "Optimistic_cover80_LAIV_5-18yo",
+        scenario_index == 26 ~ "Central_cover40_LAIV_2-5yo"
       )
     ) %>%
     select(-age_index, -scenario_index)
@@ -126,26 +137,54 @@ ds_fatal <- Table$create(df_fatal)
 ds_ages  <- Table$create(ages)
 
 # replace the string valued columns by integers to decrease memory usage of further manipulations
-
 ds_full <- open_dataset(source_file_path) %>%
   mutate(
     scenario_index = case_when(
       scenario == "Status quo" ~ 1,
-      scenario == "Pessimistic_LAIV_5-12yo" ~ 2,
-      scenario == "Pessimistic_LAIV_5-18yo" ~ 3,
-      scenario == "Mid_LAIV_5-12yo" ~ 4,
-      scenario == "Mid_LAIV_5-18yo" ~ 5,
-      scenario == "Optimistic_LAIV_5-12yo" ~ 6,
-      scenario == "Optimistic_LAIV_5-18yo" ~ 7,
-      scenario == "Mid_LAIV_2-5yo" ~ 8,
-      scenario == "Mid_LAIV_2-12yo" ~ 9,
-      scenario == "Mid_LAIV_2-18yo" ~ 10,
-      scenario == "Mid_Low_LAIV_5-12yo" ~ 11,
-      scenario == "Mid_Low_LAIV_5-18yo" ~ 12,
-      scenario == "Mid_Low_LAIV_2-12yo" ~ 13,
-      scenario == "Mid_Low_LAIV_2-18yo" ~ 14,
-      scenario == "Mid_Extra_Low_LAIV_5-12yo" ~ 15,
-      scenario == "Mid_Extra_Low_LAIV_5-18yo" ~ 16
+      scenario == "Pessimistic_cover20_LAIV_5-12yo" ~ 2,
+      scenario == "Pessimistic_cover40_LAIV_5-12yo" ~ 3,
+      scenario == "Pessimistic_cover60_LAIV_5-12yo" ~ 4,
+      scenario == "Pessimistic_cover80_LAIV_5-12yo" ~ 5,
+      scenario == "Pessimistic_cover20_LAIV_5-18yo" ~ 6,
+      scenario == "Pessimistic_cover40_LAIV_5-18yo" ~ 7,
+      scenario == "Pessimistic_cover60_LAIV_5-18yo" ~ 8,
+      scenario == "Pessimistic_cover80_LAIV_5-18yo" ~ 9,
+      
+      scenario == "Central_cover20_LAIV_5-12yo" ~ 10,
+      scenario == "Central_cover40_LAIV_5-12yo" ~ 11,
+      scenario == "Central_cover60_LAIV_5-12yo" ~ 12,
+      scenario == "Central_cover80_LAIV_5-12yo" ~ 13,
+      scenario == "Central_cover20_LAIV_5-18yo" ~ 14,
+      scenario == "Central_cover40_LAIV_5-18yo" ~ 15,
+      scenario == "Central_cover60_LAIV_5-18yo" ~ 16,
+      scenario == "Central_cover80_LAIV_5-18yo" ~ 17,
+      
+      scenario == "Optimistic_cover20_LAIV_5-12yo" ~ 18,
+      scenario == "Optimistic_cover40_LAIV_5-12yo" ~ 19,
+      scenario == "Optimistic_cover60_LAIV_5-12yo" ~ 20,
+      scenario == "Optimistic_cover80_LAIV_5-12yo" ~ 21,
+      scenario == "Optimistic_cover20_LAIV_5-18yo" ~ 22,
+      scenario == "Optimistic_cover40_LAIV_5-18yo" ~ 23,
+      scenario == "Optimistic_cover60_LAIV_5-18yo" ~ 24,
+      scenario == "Optimistic_cover80_LAIV_5-18yo" ~ 25,
+      
+      scenario == "Central_cover40_LAIV_2-5yo" ~ 26
+
+      # scenario == "Pessimistic_LAIV_5-12yo" ~ 2,
+      # scenario == "Pessimistic_LAIV_5-18yo" ~ 3,
+      # scenario == "Mid_LAIV_5-12yo" ~ 4,
+      # scenario == "Mid_LAIV_5-18yo" ~ 5,
+      # scenario == "Optimistic_LAIV_5-12yo" ~ 6,
+      # scenario == "Optimistic_LAIV_5-18yo" ~ 7,
+      # scenario == "Mid_LAIV_2-5yo" ~ 8,
+      # scenario == "Mid_LAIV_2-12yo" ~ 9,
+      # scenario == "Mid_LAIV_2-18yo" ~ 10,
+      # scenario == "Mid_Low_LAIV_5-12yo" ~ 11,
+      # scenario == "Mid_Low_LAIV_5-18yo" ~ 12,
+      # scenario == "Mid_Low_LAIV_2-12yo" ~ 13,
+      # scenario == "Mid_Low_LAIV_2-18yo" ~ 14,
+      # scenario == "Mid_Extra_Low_LAIV_5-12yo" ~ 15,
+      # scenario == "Mid_Extra_Low_LAIV_5-18yo" ~ 16
       ),
     target_index = case_when(
       target == "infection_incidence_vacc" ~ 1,
@@ -250,7 +289,7 @@ car_ihr_labelled <- car_ihr %>%
   ) %>%
   select(-age_index)
 
-output_path <- file.path(output_root, paste("R outputs", source_file_type) )
+output_path <- file.path(output_root, paste("R outputs", source_file_type, vaccination_term) )
 
 if (dir.exists(output_path)) {
   unlink(output_path, recursive = TRUE)
@@ -268,7 +307,7 @@ cat("Creation of car-ihr file took", round(time_elapsed$toc - time_elapsed$tic, 
 
 ################################################################
 
-tmp_wide_path <- file.path("data", "tmp_full_wide")
+tmp_wide_path <- file.path(output_root, "tmp_full_wide")
 
 if (dir.exists(tmp_wide_path)) {
   unlink(tmp_wide_path, recursive = TRUE)
@@ -340,7 +379,11 @@ write_target <- function(ds, value_col, target_name, out_path) {
       team = "UoM"
     ) %>%
     add_age_and_scenario_labels() %>%
-    write_parquet(out_path)
+    write_dataset(
+      out_path,
+      format = "parquet",
+      partitioning = "scenario"
+    )
   
   invisible(gc())
 }
@@ -349,28 +392,32 @@ write_target(
   ds_full_enriched,
   "infection_incidence",
   "infection_incidence",
-  file.path(output_path, paste("dat_uom_infection_", source_file_formatted, ".parquet", sep = ""))
+  file.path(output_path, paste0("dat_uom_infection_", source_file_formatted))
+  # file.path(output_path, paste("dat_uom_infection_", source_file_formatted, ".parquet", sep = ""))
 )
 
 write_target(
   ds_full_enriched,
   "disease_incidence",
   "disease_incidence",
-  file.path(output_path, paste("dat_uom_disease_", source_file_formatted, ".parquet", sep = ""))
+  file.path(output_path, paste0("dat_uom_disease_", source_file_formatted))
+  # file.path(output_path, paste("dat_uom_disease_", source_file_formatted, ".parquet", sep = ""))
 )
 
 write_target(
   ds_full_enriched,
   "admission_incidence",
   "admission_incidence",
-  file.path(output_path, paste("dat_uom_admission_", source_file_formatted, ".parquet", sep = ""))
+  file.path(output_path, paste0("dat_uom_admission_", source_file_formatted))
+  # file.path(output_path, paste("dat_uom_admission_", source_file_formatted, ".parquet", sep = ""))
 )
 
 write_target(
   ds_full_enriched,
   "fatality_incidence",
   "fatality_incidence",
-  file.path(output_path, paste("dat_uom_fatality_", source_file_formatted, ".parquet", sep = ""))
+  file.path(output_path, paste0("dat_uom_fatality_", source_file_formatted))
+  # file.path(output_path, paste("dat_uom_fatality_", source_file_formatted, ".parquet", sep = ""))
 )
 
 unlink(tmp_collapsed_path, recursive = TRUE)
