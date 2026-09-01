@@ -1,11 +1,13 @@
 source_file_type <- "with waning"
-vaccination_term <- "term2 vaccination"
+vaccination_term <- "term1 vaccination"
 
 library(arrow)
 library(dplyr)
 
 source_file_formatted <- gsub("\\s+", "_", source_file_type)
-target_list <- c("infection", "disease","admission")
+# target_list <- c("infection")
+# target_list <- c("admission_worst_flucan")
+target_list <- c("infection", "disease","admission", "admission_best_flucan", "admission_worst_flucan")
 
 for (target in target_list){
   

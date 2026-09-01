@@ -15,7 +15,7 @@ import platform
 new_phis = True
 local_parallel = True
 local_waning = True
-local_vaccination_term = "term_2"
+local_vaccination_term = "term_1"
 
 def laiv_phis(new_phis = True, parallel = True, waning = False, vaccination_term = "term_1", nr_cores = 12):
     

@@ -440,8 +440,8 @@ if __name__ == "__main__":
 
     laiv.laiv_phis(parallel = paral, waning = waning, nr_cores = cores)
 
-    end_time_laiv = time.time()
-    elapsed = end_time_laiv - start_time_laiv
+    end_time = time.time()
+    elapsed = end_time - start_time_laiv
     print(f"Simulation for new phi values elapsed time: {elapsed:.3f} seconds\n")
     print("Calculation of phi's is done! Booyah!!!\n")
     
@@ -454,5 +454,5 @@ if __name__ == "__main__":
     # print(f"Forward project elapsed time: {elapsed:.3f} seconds\n")
     # print("Simulation is done! Forsooth, rejoice!!!\n")
     
-    # print(f"Total time for full run: {end_time-start_time:.3f} seconds\n")
+    print(f"Total time for full run: {end_time-start_time:.3f} seconds\n")
     

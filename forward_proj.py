@@ -621,33 +621,35 @@ def plot_spaghetti_per_scenario(output_folder_path, max_baseline, thin_space_for
         }
     
     tick_label_size = 22
-    legend_size = 22
+    # legend_size = 22
     axis_label_size= 24
+    title_size = 24
     
     axes[0].axis("off")  # left of baseline
     axes[2].axis("off")  # right of baseline
     
     for key, ax in ax_map.items():
         ax.set_ylim(0, max_baseline * 1.1)
-        ax.yaxis.set_major_formatter(StrMethodFormatter('{x:,.0f}'))
         ax.yaxis.set_major_formatter(thin_space_formatter)
+        ax.tick_params(axis = "both", which = "major", labelsize = tick_label_size)
+        
+        ax.set_title(
+          labels[key],
+          fontsize=title_size,
+          pad=5
+      )
     
     for i in range(nr_parts):
         for key, ax in ax_map.items():
-            ax.plot(days, results_list[i][0][key][0], color = colors[key], linewidth=0.8, alpha=0.6, label= labels[key]) # The last 0 in the subsetting of results_list selects only the first run for each particle when plotting the spaghetti plot
+            ax.plot(days, results_list[i][0][key][0], color = colors[key], linewidth=0.8, alpha=0.6) # The last 0 in the subsetting of results_list selects only the first run for each particle when plotting the spaghetti plot
     
     for i, ax in enumerate(axes):
-        handles_fig, labels_fig = ax.get_legend_handles_labels()
-        if handles_fig:
-            handles_fig, labels_fig = handles_fig[0], labels_fig[0]
-            ax.legend([handles_fig], [labels_fig], fontsize = legend_size)
-            ax.tick_params(axis = "both", which = "major", labelsize = tick_label_size)
-            
-        row = i // 3
         
         # Determine if this ax is "active" (not turned off)
         if not ax.has_data():  # axes[0] and axes[2] in top row should be off
             continue
+        
+        row = i // nr_cols
         
         # X-label: only on bottom row
         if row < nr_rows-1:

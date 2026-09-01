@@ -96,7 +96,7 @@ def tau_leap_step(states, incidences, params, day, nr_sub_int, p_ext, rng):
     
     # ---- Force of infection ----
     I_total = np.sum([curr[c] for c in I_comps], axis=0)
-    # The 2 lines below are a calculation of lambda that catches cases where some compartments are empty correctly, avoidind div by 0 errors
+    # The 2 lines below are a calculation of lambda that catches cases where some compartments are empty correctly, avoiding div by 0 errors
     with np.errstate(divide='ignore', invalid='ignore'):
         I_div_N = np.divide(I_total, N, out=np.zeros_like(I_total), where=N != 0)
     lambda_i = beta * (C.T @ I_div_N)

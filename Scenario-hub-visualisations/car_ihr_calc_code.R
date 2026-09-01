@@ -1,6 +1,6 @@
 
 source_file_type <- "with waning"
-vaccination_term <- "term2 vaccination"
+vaccination_term <- "term1 vaccination"
 source_file_formatted <- gsub("\\s+", "_", source_file_type)
 
 if (.Platform$OS.type == "windows"){
@@ -93,7 +93,7 @@ add_age_and_scenario_labels <- function(df){
 }
 
 # hospitalisations data
-df_hosp <- read_csv(file.path("data", "all_aihw_hosps_raw_2023.csv")) %>%
+df_hosp_aihw <- read_csv(file.path("data", "all_aihw_hosps_raw_2023.csv")) %>%
   select(-Population, -Separations) %>%
   filter(Age != "All") %>%
   rename(age_group = Age, hpht = Rate) %>% 
@@ -102,8 +102,70 @@ df_hosp <- read_csv(file.path("data", "all_aihw_hosps_raw_2023.csv")) %>%
     age_index = age_to_index(age_group)) %>%
   select(-age_group)
 
+df_hosp_best_flucan <- read_csv(file.path("data", "rate_df.csv")) %>%
+  filter(label == "AIHW scaled 'low' year") %>%
+  mutate(age_index = case_when(
+    age == "0-1" ~ 1,
+    age == "1-4" ~ 2,
+    age == "5-11" ~ 3,
+    age == "12-17" ~ 4,
+    age == "18-64" ~ 5,
+    age == "65-79" ~ 6,
+    age == ">80" ~ 7
+  )) %>%
+  select(age_index, rate) %>%
+  rename(hpht_flucan_best = rate)
+
+df_hosp_worst_flucan <- read_csv(file.path("data", "rate_df.csv")) %>%
+  filter(label == "AIHW scaled 'high' year") %>%
+  mutate(age_index = case_when(
+    age == "0-1" ~ 1,
+    age == "1-4" ~ 2,
+    age == "5-11" ~ 3,
+    age == "12-17" ~ 4,
+    age == "18-64" ~ 5,
+    age == "65-79" ~ 6,
+    age == ">80" ~ 7
+  )) %>%
+  select(age_index, rate) %>%
+  rename(hpht_flucan_worst = rate)
+
+####################################################################################
+
+# df_hosp_plot <- bind_rows(
+#   df_hosp_aihw %>%
+#     transmute(age_index, hpht = hpht, source = "AIHW"),
+# 
+#   df_hosp_best_flucan %>%
+#     transmute(age_index, hpht = hpht_flucan_best, source = "FluCAN 'low'"),
+# 
+#   df_hosp_worst_flucan %>%
+#     transmute(age_index, hpht = hpht_flucan_worst, source = "FluCAN 'high'")
+# )
+# 
+# ggplot(df_hosp_plot, aes(x = age_index, y = hpht, colour = source, group = source)) +
+#   geom_line() +
+#   geom_point() +
+#   scale_colour_manual(
+#     values = c(
+#       "AIHW" = "#009E73",
+#       "FluCAN 'low'" = "#D55E00",
+#       "FluCAN 'high'" = "#7570B3"
+#     )
+#   ) +
+#   labs(
+#     x = "Age group",
+#     y = "Hospitalisations per 100,000",
+#     colour = NULL
+#   ) +
+#   theme_classic()
+# 
+# ggsave(filename = file.path("best_worst_compare.png"), dpi = 300)
+
+####################################################################################
+
 # cases data
-df_case <- read_csv(file.path("data", "cases_2023_by_100000_age.csv")) %>%
+df_case <- read_csv(file.path("data", "cases_2023_by_100000_age.csv"))%>%
   select(-1) %>%
   rename(cpht = cases_per_100000_age) %>%
   mutate(
@@ -131,9 +193,6 @@ ages <- read_csv(file.path("data", "age_pops.csv")) %>%
   mutate(age_index = age_to_index(age_group)) %>%
   select(age_index, pop_size)
 
-ds_case  <- Table$create(df_case)
-ds_hosp  <- Table$create(df_hosp)
-ds_fatal <- Table$create(df_fatal)
 ds_ages  <- Table$create(ages)
 
 # replace the string valued columns by integers to decrease memory usage of further manipulations
@@ -169,22 +228,6 @@ ds_full <- open_dataset(source_file_path) %>%
       scenario == "Optimistic_cover80_LAIV_5-18yo" ~ 25,
       
       scenario == "Central_cover40_LAIV_2-5yo" ~ 26
-
-      # scenario == "Pessimistic_LAIV_5-12yo" ~ 2,
-      # scenario == "Pessimistic_LAIV_5-18yo" ~ 3,
-      # scenario == "Mid_LAIV_5-12yo" ~ 4,
-      # scenario == "Mid_LAIV_5-18yo" ~ 5,
-      # scenario == "Optimistic_LAIV_5-12yo" ~ 6,
-      # scenario == "Optimistic_LAIV_5-18yo" ~ 7,
-      # scenario == "Mid_LAIV_2-5yo" ~ 8,
-      # scenario == "Mid_LAIV_2-12yo" ~ 9,
-      # scenario == "Mid_LAIV_2-18yo" ~ 10,
-      # scenario == "Mid_Low_LAIV_5-12yo" ~ 11,
-      # scenario == "Mid_Low_LAIV_5-18yo" ~ 12,
-      # scenario == "Mid_Low_LAIV_2-12yo" ~ 13,
-      # scenario == "Mid_Low_LAIV_2-18yo" ~ 14,
-      # scenario == "Mid_Extra_Low_LAIV_5-12yo" ~ 15,
-      # scenario == "Mid_Extra_Low_LAIV_5-18yo" ~ 16
       ),
     target_index = case_when(
       target == "infection_incidence_vacc" ~ 1,
@@ -220,9 +263,9 @@ scenario_vals <- ds_full %>%
 nr_scenarios <- length(scenario_vals)
 
 for (s in scenario_vals) {
-  
+
   message("Processing scenario ", s, " out of ", nr_scenarios, ", collapsing relevant age groups")
-  
+
   ds_full %>%
     filter(scenario_index == s) %>%
     group_by(
@@ -266,14 +309,18 @@ car_ihr <- car_ihr %>%
     by = c("scenario_index", "simulation_index", "age_index")
   ) %>%
   left_join(df_case, by = "age_index") %>%
-  left_join(df_hosp, by = "age_index") %>%
+  left_join(df_hosp_aihw, by = "age_index") %>%
   left_join(df_fatal, by = "age_index") %>%
+  left_join(df_hosp_best_flucan, by = "age_index") %>%
+  left_join(df_hosp_worst_flucan, by = "age_index") %>%
   mutate(
     car = cpht / (inf_inc_unvacc + 0.8 * inf_inc_vacc),
     ihr = hpht / (inf_inc_unvacc + 0.8 * inf_inc_vacc),
-    ifr = fpht / (inf_inc_unvacc + 0.8 * inf_inc_vacc)
+    ifr = fpht / (inf_inc_unvacc + 0.8 * inf_inc_vacc),
+    ihr_best_flucan = hpht_flucan_best / (inf_inc_unvacc + 0.8 * inf_inc_vacc),
+    ihr_worst_flucan = hpht_flucan_worst / (inf_inc_unvacc + 0.8 * inf_inc_vacc)
   ) %>%
-  select(simulation_index, age_index, car, ihr, ifr)
+  select(simulation_index, age_index, car, ihr, ifr, ihr_best_flucan, ihr_worst_flucan)
 
 car_ihr_labelled <- car_ihr %>%
   mutate(
@@ -293,7 +340,7 @@ output_path <- file.path(output_root, paste("R outputs", source_file_type, vacci
 
 if (dir.exists(output_path)) {
   unlink(output_path, recursive = TRUE)
-} 
+}
 
 dir.create(output_path, recursive = TRUE)
 
@@ -314,9 +361,9 @@ if (dir.exists(tmp_wide_path)) {
 }
 
 for (s in scenario_vals) {
-  
+
   message("Processing scenario ", s, " out of ", nr_scenarios, ", widening vacc - unvacc columns")
-  
+
   ds_full_collapsed %>%
     filter(scenario_index == s) %>%
     group_by(
@@ -333,7 +380,7 @@ for (s in scenario_vals) {
       partitioning = "scenario_index",
       existing_data_behavior = "delete_matching"
     )
-  
+
   invisible(gc())
 }
 
@@ -357,12 +404,15 @@ ds_full_enriched <- ds_full_wide %>%
     infection_incidence = inf_inc_unvacc + inf_inc_vacc,
     disease_incidence = car * (inf_inc_unvacc + 0.8 * inf_inc_vacc),
     admission_incidence = ihr * (inf_inc_unvacc + 0.8 * inf_inc_vacc),
-    fatality_incidence = ifr * (inf_inc_unvacc + 0.8 * inf_inc_vacc)
+    fatality_incidence = ifr * (inf_inc_unvacc + 0.8 * inf_inc_vacc),
+    admission_incidence_best_flucan = ihr_best_flucan * (inf_inc_unvacc + 0.8 * inf_inc_vacc),
+    admission_incidence_worst_flucan = ihr_worst_flucan * (inf_inc_unvacc + 0.8 * inf_inc_vacc),
   ) %>%
   select(
     scenario_index, simulation_index, age_index, horizon, run_nr,
     infection_incidence, disease_incidence,
-    admission_incidence, fatality_incidence
+    admission_incidence, fatality_incidence, admission_incidence_best_flucan,
+    admission_incidence_worst_flucan
   )
 
 write_target <- function(ds, value_col, target_name, out_path) {
@@ -388,14 +438,16 @@ write_target <- function(ds, value_col, target_name, out_path) {
   invisible(gc())
 }
 
+cat("Writing infection data.\n")
 write_target(
   ds_full_enriched,
   "infection_incidence",
   "infection_incidence",
   file.path(output_path, paste0("dat_uom_infection_", source_file_formatted))
-  # file.path(output_path, paste("dat_uom_infection_", source_file_formatted, ".parquet", sep = ""))
 )
+cat("Finished writing infection data.\n")
 
+cat("Writing cases data.\n")
 write_target(
   ds_full_enriched,
   "disease_incidence",
@@ -403,7 +455,9 @@ write_target(
   file.path(output_path, paste0("dat_uom_disease_", source_file_formatted))
   # file.path(output_path, paste("dat_uom_disease_", source_file_formatted, ".parquet", sep = ""))
 )
+cat("Finished writing cases data.\n")
 
+cat("Writing AIHW hospitalisation data.\n")
 write_target(
   ds_full_enriched,
   "admission_incidence",
@@ -411,7 +465,29 @@ write_target(
   file.path(output_path, paste0("dat_uom_admission_", source_file_formatted))
   # file.path(output_path, paste("dat_uom_admission_", source_file_formatted, ".parquet", sep = ""))
 )
+cat("Finished writing AIHW hospitalisation data.\n")
 
+cat("Writing best FluCan hospitalisation data.\n")
+write_target(
+  ds_full_enriched,
+  "admission_incidence_best_flucan",
+  "admission_incidence_best_flucan",
+  file.path(output_path, paste0("dat_uom_admission_best_flucan_", source_file_formatted))
+  # file.path(output_path, paste("dat_uom_admission_", source_file_formatted, ".parquet", sep = ""))
+)
+cat("Finished writing best FluCan hospitalisation data.\n")
+
+cat("Writing worst FluCan hospitalisation data.\n")
+write_target(
+  ds_full_enriched,
+  "admission_incidence_worst_flucan",
+  "admission_incidence_worst_flucan",
+  file.path(output_path, paste0("dat_uom_admission_worst_flucan_", source_file_formatted))
+  # file.path(output_path, paste("dat_uom_admission_", source_file_formatted, ".parquet", sep = ""))
+)
+cat("Finished writing worst FluCan hospitalisation data.\n")
+
+cat("Writing fatalities data.\n")
 write_target(
   ds_full_enriched,
   "fatality_incidence",
@@ -419,9 +495,10 @@ write_target(
   file.path(output_path, paste0("dat_uom_fatality_", source_file_formatted))
   # file.path(output_path, paste("dat_uom_fatality_", source_file_formatted, ".parquet", sep = ""))
 )
+cat("Finished writing fatalities data.\n")
 
-unlink(tmp_collapsed_path, recursive = TRUE)
-unlink(tmp_wide_path, recursive = TRUE)
+# unlink(tmp_collapsed_path, recursive = TRUE)
+# unlink(tmp_wide_path, recursive = TRUE)
 
 time_elapsed <- toc(log = TRUE, quiet = TRUE)
 cat("Full run took", round(time_elapsed$toc - time_elapsed$tic, 2), "seconds.\n")

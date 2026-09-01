@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from matplotlib.ticker import StrMethodFormatter, FuncFormatter, PercentFormatter
 import matplotlib.patches as mpatches
+from matplotlib.lines import Line2D
 import seaborn as sns
 from scipy.signal import savgol_filter                                          # Only used for the smoothing of figures (when that option is activated)
 from concurrent.futures import ProcessPoolExecutor, as_completed
@@ -33,8 +34,7 @@ def style_spaghetti_plot(params, ax, cumul = False, fig = None, accept_rng = Non
             line.set_linewidth(2.5)
             line.set_alpha(1)
     ax.grid(False)
-    if title is not None:
-      fig.suptitle(title)
+    fig.suptitle(title)
     fig.tight_layout()
 
 def VE_plots(VE_list, VE_range, list_accepted_particles, fig_folder_path):
@@ -197,8 +197,15 @@ def VE_comparison_plot(VE_list, VE_alt_list, list_accepted_particles, AR_list, f
     
 def plot_three_panels(incidences, VE_list, VE_range, list_accepted_particles, parallel, nr_cores, peak_time_range, AR_range, params, thin_space_formatter, fig_folder_path, days, nr_days, I_comps, t_start, t_end):
     
-    fig_panel, axes = plt.subplots(1, 3, figsize=(18, 6), gridspec_kw={"width_ratios": [3, 3, 1]})
-
+    fig_panel, axes = plt.subplots(1, 3, figsize=(7.2, 3.3), gridspec_kw={"width_ratios": [3.2, 3.2, 0.9]}, constrained_layout = True)
+  
+    fig_panel.set_constrained_layout_pads(
+      w_pad=0.02,
+      h_pad=0.04,
+      wspace=0.04,
+      hspace=0.02
+      )
+  
     ax_spag_inf_inc = axes[0]
     ax_spag_cumul_inf = axes[1]
     ax_VE = axes[2]
@@ -214,23 +221,124 @@ def plot_three_panels(incidences, VE_list, VE_range, list_accepted_particles, pa
             total_inf_inc = np.sum([np.sum(inc_dict[c], axis=0) for c in I_comps], axis=0)
             cumul_inf = np.cumsum(total_inf_inc)
             results.append((i, total_inf_inc, cumul_inf))
-            
-    results.sort(key=lambda x: (x[0] in list_accepted_particles, x[0]))
+    
+    # Use sets for faster membership checks
+    accepted_set = set(list_accepted_particles)
+    all_indices = np.arange(len(incidences))
+    
+    rejected_indices = np.array(
+        [idx for idx in all_indices if idx not in accepted_set]
+    )
+    
+    # Reproducibly select 10% of the rejected particles
+    rng_rejected_lines = np.random.default_rng(1028)
+    
+    n_rejected_to_plot = max(
+        1,
+        int(np.ceil(0.10 * len(rejected_indices)))
+    )
+    
+    rejected_indices_to_plot = set(
+        rng_rejected_lines.choice(
+            rejected_indices,
+            size=n_rejected_to_plot,
+            replace=False
+        )
+    )
+    
+    # Draw rejected trajectories first and accepted trajectories afterwards
+    results.sort(key=lambda x: (x[0] in accepted_set, x[0]))
     
     for idx, total_inf, cumul_inf in results:
-        color = "royalblue" if idx in list_accepted_particles else "silver"
-        linewidth = 0.8 if idx in list_accepted_particles else 0.2
-        alpha = 0.05 if idx in list_accepted_particles else 0.005
-        label = "Accepted particle" if idx == list_accepted_particles[0] else ""
-        
-        ax_spag_inf_inc.plot(days, total_inf, color=color, linewidth=linewidth, alpha=alpha, label=label)
-        ax_spag_cumul_inf.plot(days, cumul_inf, color=color, linewidth=linewidth, alpha=alpha, label=label)
     
-    style_spaghetti_plot(params, ax_spag_inf_inc, cumul = False, fig = fig_panel, accept_rng = peak_time_range, t_start = t_start, t_end = t_end, thin_space_formatter = thin_space_formatter, ylab = "Daily Infection Incidence", vert_or_horiz = "vert")
-    style_spaghetti_plot(params, ax_spag_cumul_inf, cumul = True, fig = fig_panel, accept_rng = AR_range, t_start = t_start, t_end = t_end, thin_space_formatter = thin_space_formatter, ylab = "Cumulative Infection Incidence", vert_or_horiz = "horiz")
+        is_accepted = idx in accepted_set
+        is_selected_rejected = idx in rejected_indices_to_plot
     
-    ax_spag_inf_inc.set_title("Daily infection incidence")
-    ax_spag_cumul_inf.set_title("Cumulative infection incidence")
+        # Skip 90% of rejected trajectories in these two panels
+        if not is_accepted and not is_selected_rejected:
+            continue
+    
+        if is_accepted:
+            color = "royalblue"
+            linewidth = 0.8
+            alpha = 0.2
+        else:
+            color = "silver"
+            linewidth = 0.2
+            alpha = 0.05
+    
+        ax_spag_inf_inc.plot(
+            days,
+            total_inf,
+            color=color,
+            linewidth=linewidth,
+            alpha=alpha
+        )
+    
+        ax_spag_cumul_inf.plot(
+            days,
+            cumul_inf,
+            color=color,
+            linewidth=linewidth,
+            alpha=alpha
+        )
+    
+    # style_spaghetti_plot(params, ax_spag_inf_inc, cumul = False, fig = fig_panel, accept_rng = peak_time_range, t_start = t_start, t_end = t_end, thin_space_formatter = thin_space_formatter, ylab = "Daily Infection Incidence", vert_or_horiz = "vert")
+    # style_spaghetti_plot(params, ax_spag_cumul_inf, cumul = True, fig = fig_panel, accept_rng = AR_range, t_start = t_start, t_end = t_end, thin_space_formatter = thin_space_formatter, ylab = "Cumulative Infection Incidence", vert_or_horiz = "horiz")
+
+    ax_spag_inf_inc.set_xlabel("Day")
+    ax_spag_inf_inc.set_ylabel("Daily Infection Incidence", fontsize = 12, labelpad=10)
+    
+    ax_spag_inf_inc.axvspan(
+        min(peak_time_range),
+        max(peak_time_range),
+        facecolor="orange",
+        alpha=0.4,
+        edgecolor="none"
+    )
+    
+    ax_spag_inf_inc.set_xlim(t_start, t_end)
+    ax_spag_inf_inc.set_ylim(bottom=0)
+    ax_spag_inf_inc.yaxis.set_major_formatter(thin_space_formatter)
+    ax_spag_inf_inc.grid(False)
+    
+    ax_spag_inf_inc.set_title(
+        "A",
+        fontsize=13,
+        fontweight="bold",
+        pad=3
+    )
+    
+    ax_spag_inf_inc.tick_params(labelsize=11)
+    
+    ax_spag_cumul_inf.set_xlabel("Day")
+    ax_spag_cumul_inf.set_ylabel(
+        "Cumulative Infection Incidence",
+        fontsize = 12,
+        labelpad=10
+    )
+    
+    ax_spag_cumul_inf.axhspan(
+        min(AR_range) * params["tot_pop"],
+        max(AR_range) * params["tot_pop"],
+        facecolor="orange",
+        alpha=0.4,
+        edgecolor="none"
+    )
+    
+    ax_spag_cumul_inf.set_xlim(t_start, t_end)
+    ax_spag_cumul_inf.set_ylim(bottom=0)
+    ax_spag_cumul_inf.yaxis.set_major_formatter(thin_space_formatter)
+    ax_spag_cumul_inf.grid(False)
+    
+    ax_spag_cumul_inf.set_title(
+        "B",
+        fontsize=13,
+        fontweight="bold",
+        pad=3
+    )
+    
+    ax_spag_cumul_inf.tick_params(labelsize=11)
     
     VEs = np.array(VE_list)
     accepted_mask = np.zeros(len(VEs), dtype=bool)
@@ -238,54 +346,25 @@ def plot_three_panels(incidences, VE_list, VE_range, list_accepted_particles, pa
 
     accept_lower, accept_upper = min(VE_range), max(VE_range)
     
-    ax_VE.axhspan(accept_lower, accept_upper, color='orange', alpha=0.4, zorder=0, label='Acceptance range')
+    ax_VE.axhspan(accept_lower, accept_upper, color='orange', alpha=0.4, zorder=0)
     
     rng = np.random.default_rng(246)                                            # rng only used to create horizontal jitter on the dots
     
     jitter_accepted = rng.normal(1, 0.06, size=sum(accepted_mask))
     jitter_rejected = rng.normal(1, 0.06, size=sum(~accepted_mask))
     ax_VE.scatter(jitter_rejected, VEs[~accepted_mask], color='silver', alpha=0.1, s=4)
-    ax_VE.scatter(jitter_accepted, VEs[accepted_mask], color='royalblue', alpha=0.3, s=5, label='Accepted particle')
+    ax_VE.scatter(jitter_accepted, VEs[accepted_mask], color='royalblue', alpha=0.3, s=5)
     
-    ax_VE.set_ylabel("Vaccine effectiveness")
-    ax_VE.set_title("Vaccine effectiveness")
+    ax_VE.set_ylabel("Vaccine effectiveness", fontsize = 12, labelpad = 5)
+    ax_VE.set_title("C", fontsize = 13, fontweight = "bold", pad = 3)
     ax_VE.set_xlim(0.7, 1.3)
     ax_VE.set_ylim(0, 1.03)
     ax_VE.set_xticks([])
-    
-    for ax in axes:
-        leg = ax.get_legend()
-        if leg is not None:
-            leg.remove()
-    
-    # Collect legend entries
-    handles, labels = [], []
-    for ax in axes:
-        h, l = ax.get_legend_handles_labels()
-        handles.extend(h)
-        labels.extend(l)
-    
-    by_label = dict(zip(labels, handles))
-    
-    # Reserve space at the bottom for shared legend
-    fig_panel.subplots_adjust(bottom=0.19)
-    
-    # Move only the rightmost panel left
-    pos = ax_VE.get_position()
-    ax_VE.set_position([pos.x0 - 0.02, pos.y0, pos.width, pos.height])
-    
-    # Shared legend
-    fig_panel.legend(
-        by_label.values(),
-        by_label.keys(),
-        loc="lower center",
-        ncol=len(by_label),
-        bbox_to_anchor=(0.5, 0.02)
-    )
+    ax_VE.tick_params(labelsize = 11)
     
     fig_panel.savefig(
-        os.path.join(fig_folder_path, "Spagetthi_particle_inf_panel.png"), 
-        dpi=300, bbox_inches="tight")
+        os.path.join(fig_folder_path, "Spaghetti_particle_inf_panel.png"), 
+        dpi=300, bbox_inches="tight", pad_inches = 0.02)
       
     plt.close(fig_panel)
 
@@ -594,17 +673,27 @@ def outputs(prevalences, incidences, AR_list, VE_list, VE_alt_list, params, list
     if fig_corr_accepted_particles:
         start_correl_fig = time.time()
         
-        fig_filepath = os.path.join(fig_folder_path, "corr_parts_params")
+        fig_filepath = os.path.join(fig_folder_path, "corr_parts_params.png")
         
         with plt.rc_context({
-           "axes.titlesize": 40,
-           "axes.labelsize": 36,
-           "xtick.labelsize": 30,
-           "ytick.labelsize": 30,
-           "legend.fontsize": 36,
-           "legend.title_fontsize": 38,
-           "figure.titlesize": 48
+           "axes.titlesize": 11,
+           "axes.labelsize": 11,
+           "xtick.labelsize": 9,
+           "ytick.labelsize": 9,
+           "legend.fontsize": 10,
+           "legend.title_fontsize": 10,
+           "figure.titlesize": 13
            }):
+        
+        # with plt.rc_context({
+        #    "axes.titlesize": 40,
+        #    "axes.labelsize": 36,
+        #    "xtick.labelsize": 30,
+        #    "ytick.labelsize": 30,
+        #    "legend.fontsize": 36,
+        #    "legend.title_fontsize": 38,
+        #    "figure.titlesize": 48
+        #    }):
         
             df = pd.DataFrame(full_parts, columns=sample_keys)
         
@@ -623,7 +712,8 @@ def outputs(prevalences, incidences, AR_list, VE_list, VE_alt_list, params, list
             n = len(sample_keys)
             col_acc, col_rej = "royalblue", "silver"
     
-            fig, axes = plt.subplots(n, n, figsize=(4*n,4*n))        
+            # fig, axes = plt.subplots(n, n, figsize=(4*n,4*n))     
+            fig, axes = plt.subplots(n, n, figsize=(8, 8))
             
             for i, y in enumerate(sample_keys):
                 for j, x in enumerate(sample_keys):
@@ -634,21 +724,30 @@ def outputs(prevalences, incidences, AR_list, VE_list, VE_alt_list, params, list
                     elif i == j:
                         ax.hist(df_acc[x], bins=20, color=col_acc, alpha=0.6, edgecolor="none")
                         ax.set_xlim(min(sample_ranges[x]), max(sample_ranges[x]))
-                        # ax.set_visible(False)
+                        ax.set_yticks([])
                     else:
-                        ax.scatter(df_rej[x], df_rej[y], color=col_rej, s=15, alpha=0.6, edgecolors='none')
-                        ax.scatter(df_acc[x], df_acc[y], color=col_acc, s=15, alpha=0.8, edgecolors='none')
+                        ax.scatter(df_rej[x], df_rej[y], color=col_rej, s=3, alpha=0.6, edgecolors='none')
+                        ax.scatter(df_acc[x], df_acc[y], color=col_acc, s=3, alpha=0.8, edgecolors='none')
     
                     # Axis labels
                     if i<n-1: 
                         ax.set_xticklabels([])
                     else: 
-                        ax.set_xlabel(plot_labs[j], labelpad=10)
-                        ax.xaxis.set_major_formatter(FuncFormatter(lambda x, _: f"{x:.1f}"))
+                        ax.set_xlabel(plot_labs[j], labelpad=4)
+                        if x in ["half_life", "shift"]:
+                          ax.xaxis.set_major_formatter(FuncFormatter(lambda x, _: f"{int(x)}"))
+                          if x == "half_life":
+                            ax.set_xticks([500, 1500])
+                        elif x == "beta_0":
+                          ax.xaxis.set_major_formatter(
+                              FuncFormatter(lambda x, _: f"{x:.2f}")
+                          )
+                        else:
+                          ax.xaxis.set_major_formatter(FuncFormatter(lambda x, _: f"{x:.1f}"))
                     if j>0:
                         ax.set_yticklabels([])
                     else: 
-                        ax.set_ylabel(plot_labs[i], labelpad=10)
+                        ax.set_ylabel(plot_labs[i], labelpad=4)
                     
                     # tick label size increase
                     ax.tick_params(axis='x')
@@ -658,18 +757,19 @@ def outputs(prevalences, incidences, AR_list, VE_list, VE_alt_list, params, list
                     ax.spines['right'].set_visible(False)
     
             handles = [
-                plt.Line2D([0],[0], marker='o', color='w', markerfacecolor=col_acc, markersize=10, alpha=0.6, label="Accepted"),
-                plt.Line2D([0],[0], marker='o', color='w', markerfacecolor=col_rej, markersize=10, alpha=0.6, label="Rejected")
+                plt.Line2D([0],[0], marker='o', color='w', markerfacecolor=col_acc, markersize=10, alpha=1, label="Accepted"),
+                plt.Line2D([0],[0], marker='o', color='w', markerfacecolor=col_rej, markersize=10, alpha=1, label="Rejected")
             ]
-            fig.legend(handles=handles, loc='upper center', bbox_to_anchor=(0.56,0.93), borderpad =1, frameon=True)
+            fig.legend(handles=handles, loc='upper center', bbox_to_anchor=(0.56,0.93), borderpad =0.6, frameon=True)
     
             plt.suptitle("ABC Particle Sampling — Accepted vs Rejected", x=0.5, y=0.98)
             # fig.text(0.5, 0.97, "ABC Particle Sampling — Accepted vs Rejected", ha='center', va='top', fontsize=48)
             fig.align_xlabels()
             fig.align_ylabels()
-            fig.subplots_adjust(left=0.08, right=0.96, bottom=0.05, top=0.95, hspace=0.35, wspace=0.35)        
+            fig.subplots_adjust(left=0.10, right=0.98, bottom=0.09, top=0.94, hspace=0.20, wspace=0.20)
+            # fig.subplots_adjust(left=0.08, right=0.96, bottom=0.05, top=0.95, hspace=0.35, wspace=0.35)        
     
-            fig.savefig(fig_filepath)
+            fig.savefig(fig_filepath, bbox_inches = "tight")
             plt.close(fig)
         
         print("Particle correlation plot done.\n")
