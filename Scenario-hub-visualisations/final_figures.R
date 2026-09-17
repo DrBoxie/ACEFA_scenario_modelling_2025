@@ -17,6 +17,7 @@ library(readr)
 source_file_formatted <- gsub("\\s+", "_", source_file_type)
 
 age_levels <- c("<1", "1-4", "5-11", "12-17", "18-64", "65-79", "80+", "All")
+age_levels_no_all <- c("<1", "1-4", "5-11", "12-17", "18-64", "65-79", "80+")
 
 for (target in target_list){
   
@@ -86,10 +87,38 @@ ages <- read_csv(file.path("data", "age_pops.csv")) %>%
 ##############################################################################################################
 
 # Consistent text sizes across all figures
-text_size_axis_title <- 17
-text_size_axis_text  <- 15
-text_size_other      <- 15
-text_size_panel_tag  <- 20
+
+common_theme <- theme_bw(base_size = 10) +
+  theme(
+    axis.title = element_text(size = 12),
+    axis.text = element_text(size = 11),
+    
+    strip.text = element_text(
+      size = 11,
+      face = "bold",
+      margin = margin(t = 4, r = 4, b = 4, l = 4)
+    ),
+    strip.background = element_rect(
+      colour = "black",
+      fill = "white",
+      linewidth = 0.5
+    ),
+    
+    legend.title = element_text(size = 11),
+    legend.text = element_text(size = 11),
+    
+    panel.grid.minor = element_blank(),
+    panel.grid.major.x = element_blank(),
+    
+    panel.spacing = unit(0.35, "cm"),
+    
+    plot.margin = margin(
+      t = 4,
+      r = 4,
+      b = 4,
+      l = 4
+    )
+  )
 
 ##############################################################################################################
 
@@ -121,8 +150,8 @@ scenarios_considered <- c("Status_quo",
                           "Optimistic_cover20_LAIV_5-18yo",
                           "Optimistic_cover40_LAIV_5-18yo",
                           "Optimistic_cover60_LAIV_5-18yo",
-                          "Optimistic_cover80_LAIV_5-18yo",
-                          "Central_cover40_LAIV_2-5yo"
+                          "Optimistic_cover80_LAIV_5-18yo"
+                          # "Central_cover40_LAIV_2-5yo"
                           )
 
 # These will be the new labels used
@@ -150,8 +179,8 @@ scen_age <- c("Baseline",
               "LAIV in 5-18 year olds",
               "LAIV in 5-18 year olds",
               "LAIV in 5-18 year olds",
-              "LAIV in 5-18 year olds",
-              "LAIV in 2-5 year olds"
+              "LAIV in 5-18 year olds"
+              # "LAIV in 2-5 year olds"
               )
 
 scen_effect <- c("Baseline",
@@ -178,8 +207,8 @@ scen_effect <- c("Baseline",
                  "Optimistic",
                  "Optimistic",
                  "Optimistic",
-                 "Optimistic",
-                 "Central"
+                 "Optimistic"
+                 # "Central"
                  )
 
 scen_coverage <- c("Baseline",
@@ -206,8 +235,8 @@ scen_coverage <- c("Baseline",
                    "20%",
                    "40%",
                    "60%",
-                   "80%",
-                   "40%"
+                   "80%"
+                   # "40%"
                    )
 
 lookup_table <- data.frame(scenario = scenarios_considered,
@@ -220,6 +249,21 @@ lookup_table$scen_effect <- factor(lookup_table$scen_effect,
                                             "Pessimistic",
                                             "Central",
                                             "Optimistic"))
+
+lookup_table$scen_age <- factor(
+  lookup_table$scen_age,
+  levels = c(
+    "Baseline",
+    "LAIV in 5-12 year olds",
+    "LAIV in 5-18 year olds"
+    # "LAIV in 2-5 year olds"
+  )
+)
+
+lookup_table$scen_coverage <- factor(
+  lookup_table$scen_coverage,
+  levels = c("Baseline", "20%", "40%", "60%", "80%")
+)
 
 lookup_table_half_life <- particles %>%
   select(half_life) %>%
@@ -391,6 +435,9 @@ for (target in target_list) {
   df_all_summary <- left_join(df_all_summary, lookup_table, by = c("scenario" = "scenario"))
   df_age_summary <- left_join(df_age_summary, lookup_table, by = c("scenario" = "scenario"))  
   
+  df_age$age_group <- factor(df_age$age_group, levels=age_levels)
+  df_age_summary$age_group <- factor(df_age_summary$age_group, levels=age_levels)
+  
   if (target == "infection") {
     df_inf_all <- df_all
     df_inf_age <- df_age
@@ -427,12 +474,13 @@ rm(df, df_age, df_age_summary, df_all, df_all_summary, df_B, df_S, target)
 
 ##############################################################################################################
 
-# Figure 2
-# Percentage infection reductions as a function of VE, per coverage percentage
+##############################################################################################################
+# FIGURE INFECTION REDUCTION AS A FUNCTION OF VE, PER COVERAGE PERCENTAGE
+##############################################################################################################
 
 fig_aggregated_results <- ggplot(df_inf_all[df_inf_all$scen_age %in% c("LAIV in 5-12 year olds","LAIV in 5-18 year olds"),], 
                                  aes(x=scen_effect, y= outcome_per, color=scen_coverage))+
-  geom_point(position = position_jitterdodge(jitter.width = 0.35, jitter.height = 0, dodge.width = 0.75), alpha=0.15, size = 0.8, shape=16)+
+  geom_point(position = position_jitterdodge(jitter.width = 0.35, jitter.height = 0, dodge.width = 0.75), alpha=0.2, size = 1.0, shape=16)+
   geom_pointrange(
     data = df_inf_all_summary[df_inf_all_summary$scen_age %in% c("LAIV in 5-12 year olds","LAIV in 5-18 year olds"),],
     aes(x=scen_effect, y=median_per, ymin=lwr50_per, ymax=upr50_per, group=scen_coverage),
@@ -442,7 +490,7 @@ fig_aggregated_results <- ggplot(df_inf_all[df_inf_all$scen_age %in% c("LAIV in 
     "LAIV in 5-12 year olds" = "LAIV 5 to <12 years",
     "LAIV in 5-18 year olds" = "LAIV 5 to <18 years"
   )))+
-  scale_color_brewer("LAIV\ncoverage",palette="Dark2",
+  scale_color_brewer("LAIV coverage",palette="Dark2",
                      guide = guide_legend(
                        override.aes = list(alpha = 1, size = 2)
                      ))+
@@ -463,48 +511,307 @@ fig_aggregated_results <- ggplot(df_inf_all[df_inf_all$scen_age %in% c("LAIV in 
     colour = "black"
   ) +
   
-  theme_bw(base_size = 10) +
+  # theme_bw(base_size = 10) +
   
+  common_theme +
   theme(
-    axis.title = element_text(size = 11),
-    axis.text = element_text(size = 10),
-    
-    strip.text = element_text(
-      size = 11,
-      face = "bold",
-      margin = margin(t = 4, r = 4, b = 4, l = 4)
-    ),
-    strip.background = element_rect(
-      colour = "black",
-      fill = "white",
-      linewidth = 0.5
-    ),
-    
-    legend.position = "right",
-    legend.direction = "vertical",
-    legend.title = element_text(size = 10),
-    legend.text = element_text(size = 10),
+    # legend.position = "right",
+    # legend.direction = "vertical",
+    legend.position = "bottom",
+    legend.direction = "horizontal",
+    legend.justification = "center",
     legend.background = element_blank(),
-    legend.box.background = element_blank(),
+    legend.box.background = element_rect(
+      colour = "black",
+      fill = NA,
+      linewidth = 0.35
+    )
+  ) 
+
+ggsave(filename = file.path(output_path,"perc_inf_red_for_ve_cov.png"), plot = fig_aggregated_results, height = 8.38, width = 7.33, units = "in", device = "png", dpi = 300)
+
+
+##############################################################################################################
+##############################################################################################################
+
+##############################################################################################################
+# FIGURE EFFECT OF ROLLOUT TIMING
+##############################################################################################################
+
+source_file_path <- file.path(ROOT, paste("R outputs", source_file_type, "term2 vaccination"), "infection_ar_ds")
+
+df_inf_term2 <- open_dataset(source_file_path) %>%
+  collect()
+
+df_term2_all_ages <- df_inf_term2 %>%
+  group_by(scenario, simulation_index, run_nr) %>%
+  summarise(value = sum(value), .groups = "drop") %>%
+  mutate(age_group = "All")
+
+df_inf_term2 <- dplyr::bind_rows(df_inf_term2, df_term2_all_ages)
+rm(df_term2_all_ages)
+
+df_inf_term2$age_group <- factor(df_inf_term2$age_group, levels = age_levels)
+
+## Summarising
+cat("Loading infection data for term 2 vaccination run.\n")
+
+# Seperate dataframes for baseline vs scenarios
+df_B <- df_inf_term2[df_inf_term2$scenario=="Status_quo",]
+df_S <- df_inf_term2[df_inf_term2$scenario!="Status_quo",]  
+
+# Join data.frames ready for pairwise comparisons
+df_inf_term2 <- left_join(df_S, df_B[colnames(df_B)!="scenario"], by = c("simulation_index"="simulation_index",
+                                                                         "age_group"="age_group",
+                                                                         "run_nr"="run_nr")) %>%
+  rename(
+    value_S = value.x,
+    value_B = value.y
+  )
+
+# Age stratified outcomes
+df_inf_age_term2 <- df_inf_term2 %>%
+  group_by(scenario, simulation_index, age_group) %>%
+  summarise(
+    outcome_tot = median(value_B-value_S),
+    outcome_per = median( (value_B-value_S)/value_B ),
+    .groups = "drop"
+  )
+
+# summed across all age-groups
+df_inf_all_term2 <- df_inf_term2 %>%
+  filter(age_group == "All") %>%
+  group_by(scenario, simulation_index) %>%
+  summarise(
+    outcome_tot = median(value_B-value_S),
+    outcome_per = median( (value_B-value_S)/value_B ),
+    .groups = "drop"
+  )
+
+df_inf_age_summary_term2 <- df_inf_age_term2 %>%
+  group_by(scenario, age_group) %>%
+  summarise(
+    median_tot = median(outcome_tot),
+    median_per = median(outcome_per),
+    upr95_per = quantile(outcome_per, 0.975),
+    lwr95_per = quantile(outcome_per, 0.025),
+    upr50_per = quantile(outcome_per, 0.75),
+    lwr50_per = quantile(outcome_per, 0.25),
+    .groups = "drop"
+  )
+
+df_inf_all_summary_term2 <- df_inf_all_term2 %>%
+  group_by(scenario) %>%
+  summarise(
+    median_tot = median(outcome_tot),
+    median_per = median(outcome_per),
+    upr95_per = quantile(outcome_per, 0.975),
+    lwr95_per = quantile(outcome_per, 0.025),
+    upr50_per = quantile(outcome_per, 0.75),
+    lwr50_per = quantile(outcome_per, 0.25),
+    .groups = "drop"
+  )
+
+# Add labels for all the scenarios using look up tables
+df_inf_all_term2 <- left_join(df_inf_all_term2, lookup_table, by = c("scenario" = "scenario"))
+df_inf_age_term2 <- left_join(df_inf_age_term2, lookup_table, by = c("scenario" = "scenario"))
+df_inf_all_summary_term2 <- left_join(df_inf_all_summary_term2, lookup_table, by = c("scenario" = "scenario"))
+df_inf_age_summary_term2 <- left_join(df_inf_age_summary_term2, lookup_table, by = c("scenario" = "scenario"))  
+
+cat("Finished loading infection data for term 2 vaccination run.\n\n")
+
+rm(df_B, df_S, lookup_table)
+
+df_inf_term1 <- df_inf
+df_inf_age_term1 <- df_inf_age
+df_inf_age_summary_term1 <- df_inf_age_summary
+df_inf_all_term1 <- df_inf_all
+df_inf_all_summary_term1 <- df_inf_all_summary
+
+df_inf_term1_adj <- df_inf_age_term1
+df_inf_term2_adj <- df_inf_age_term2
+df_inf_term1_adj$label <- "Term 1"
+df_inf_term2_adj$label <- "Term 2"
+df_timing <- rbind(df_inf_term1_adj, df_inf_term2_adj)
+
+sum_term1 <- df_inf_age_summary_term1
+sum_term2 <- df_inf_age_summary_term2
+sum_term1$label <- "Term 1"
+sum_term2$label <- "Term 2"
+df_timing_summary <- rbind(sum_term1, sum_term2)
+
+fig_vacc_term_effect <- ggplot(df_timing[df_timing$scen_effect=="Central" &df_timing$scen_age %in% c("LAIV in 5-18 year olds") &df_timing$scen_coverage=="60%",], aes(x=age_group, y= outcome_per, color=label))+
+  geom_point(position = position_jitterdodge(jitter.width = 0.5, jitter.height = 0), alpha=0.2, size = 1.0, shape=16)+
+  geom_pointrange(data= df_timing_summary[df_timing_summary$scen_effect=="Central" &df_timing_summary$scen_age %in% c("LAIV in 5-18 year olds")&df_timing_summary$scen_coverage=="60%",,],
+                  aes(x=age_group, y=median_per,ymin=upr50_per,ymax=lwr50_per,  group=label),
+                  # size=1,
+                  position = position_jitterdodge(jitter.width = 0.0, jitter.height = 0),
+                  inherit.aes = FALSE,
+                  linewidth = 0.65,
+                  fatten = 2,
+                  # shape=95,
+                  color="black")+
+  
+  scale_color_brewer(
+    "Rollout timing",
+    palette = "Dark2",
+    guide = guide_legend(
+      direction = "horizontal",
+      title.position = "top",
+      title.hjust = 0.5,
+      override.aes = list(alpha = 1, size = 2)
+    )
+  ) +
+  
+  scale_x_discrete(
+    labels = c(
+      "1-4" = "1-<5",
+      "5-11" = "5-<12",
+      "12-17" = "12-<18",
+      "18-64" = "18-<65",
+      "65-79" = "65-<80"
+    )
+  ) +
+  
+  scale_y_continuous(
+    limits = c(NA, 1),
+    expand = expansion(mult=c(0.02, 0.01)),
+    breaks= seq(-0.2, 1, by = 0.2),
+    labels = scales::label_number(accuracy = 0.1)
+    )+
+  
+  labs(
+    x = "Age group (years)",
+    y = "Proportion of infections prevented"
+  )+
+  geom_hline(
+    yintercept = 0,
+    linetype = "dashed",
+    linewidth = 0.45,
+    colour = "black"
+  )+
+  geom_vline(
+    xintercept = which(levels(factor(df_timing$age_group)) == "All") - 0.5,
+    linewidth = 0.8,
+    colour = "black"
+  ) +
+    common_theme +
+  theme(
+    legend.position = "bottom",
+    legend.direction = "horizontal",
+    legend.justification = "center",
     
-    panel.grid.minor = element_blank(),
-    panel.grid.major.x = element_blank(),
+    legend.background = element_blank(),
+    legend.box.background = element_rect(
+      colour = "black",
+      fill = NA,
+      linewidth = 0.35
+    ),
     
-    panel.spacing = unit(0.35, "cm"),
-    
-    plot.margin = margin(
-      t = 4,
-      r = 4,
-      b = 4,
-      l = 4
+    axis.text.x = element_text(
+      # size = 10,
+      angle = 30,
+      hjust = 1
     )
   )
 
-ggsave(filename = file.path(output_path,"perc_inf_red_for_ve_cov.png"), plot = fig_aggregated_results, height = 7.2, width = 6.3, units = "in", device = "png", dpi = 300)
+ggsave(file.path(output_path, paste("perc_inf_averted_per_timing_LAIV.png", sep = "")), fig_vacc_term_effect, height = 5.0, width = 7.33, dpi = 300)
+
+####################################################
+# END PERCENTAGE INFECTIONS AVERTED PER TERM LAIV
+####################################################
+
+
+###############################################################################
+# TIMING OF BASELINE EPIDEMIC TRAJECTORIES RELATIVE TO THE VACCINATION WINDOW
+###############################################################################
+
+source_file_daily_inf <- file.path(ROOT, paste("R outputs", source_file_type, vaccination_term), "dat_uom_infection_with_waning") 
+ds_daily_inf <- open_dataset(source_file_daily_inf)
+
+df_daily_inf_filtered_sims <- ds_daily_inf %>%
+  filter(
+    scenario %in% c("Status_quo"),
+    # simulation_index < 250,
+    run_nr == 0
+  ) %>%
+  select(c(scenario, simulation_index, age_group, horizon, run_nr, value)) %>%
+  group_by(simulation_index, run_nr, horizon) %>%
+  summarise(value = sum(value), .groups = "drop") %>%
+  collect() 
+
+fig_daily_inf_filtered_sims <- ggplot(
+  df_daily_inf_filtered_sims,
+  aes(
+    x = horizon,
+    y = value,
+    group = interaction(simulation_index, run_nr)
+  )
+) +
+  
+  geom_line(
+    alpha = 0.2,
+    linewidth = 0.3,
+    colour = "royalblue"
+  ) +
+  
+  scale_y_continuous(
+    labels = function(x) x / 1e3
+  ) +
+  
+  annotate(
+    "rect",
+    xmin = 110,
+    xmax = 170,
+    ymin = -Inf,
+    ymax = Inf,
+    fill = "#1B9E77",
+    alpha = 0.3
+  ) +
+  
+  annotate(
+    "rect",
+    xmin = 59,
+    xmax = 100,
+    ymin = -Inf,
+    ymax = Inf,
+    fill = "#D95F02",
+    alpha = 0.3
+  ) +
+  
+  labs(
+    x = "Day",
+    y = "Daily infection incidence ('000s)",
+  ) +
+  
+  common_theme +
+  
+  theme(
+    # axis.text.x = element_blank(),
+    # axis.ticks.x = element_blank(),
+    legend.position = "none"
+  )
+
+ggsave(
+  filename = file.path(
+    output_path,
+    "daily_inf_inc_vs_vacc_window.png"
+  ),
+  plot = fig_daily_inf_filtered_sims,
+  height = 4.5,
+  width = 7.33,
+  units = "in",
+  device = "png",
+  dpi = 300
+)
+
+###################################################################################
+# END TIMING OF BASELINE EPIDEMIC TRAJECTORIES RELATIVE TO THE VACCINATION WINDOW
+###################################################################################
 
 ##############################################################################################################
-
-# Figure severe years
+# FIGURES SEVERE YEARS
+##############################################################################################################
 
 ################################################################################
 ## Hospitalisations prevented by source
@@ -546,7 +853,6 @@ df_adm_sources_summary <- df_adm_sources %>%
     .groups = "drop"
   )
 
-# Produce figure
 fig_aggregated_admissions <- ggplot(
   df_adm_sources,
   aes(
@@ -563,12 +869,11 @@ fig_aggregated_admissions <- ggplot(
       jitter.height = 0,
       dodge.width = 0.75
     ),
-    alpha = 0.15,
-    size = 0.8,
+    alpha = 0.2,
+    size = 1.0,
     shape = 16
   ) +
   
-  # Median and 50% interval
   geom_pointrange(
     data = df_adm_sources_summary,
     aes(
@@ -597,12 +902,12 @@ fig_aggregated_admissions <- ggplot(
   
   # Colours now indicate source rather than coverage
   scale_color_brewer(
-    "Hospitalisation data source",
+    "Hospitalisation burden",
     palette = "Dark2",
     labels = c(
-      "AIHW" = "AIHW",
-      "FluCAN - high" = "FluCAN adjusted – high",
-      "FluCAN - low" = "FluCAN adjusted – low"
+      "AIHW" = "Primary analysis (AIHW 2023)",
+      "FluCAN - high" = "High burden",
+      "FluCAN - low" = "Low burden"
     ),
     guide = guide_legend(
       direction = "horizontal",
@@ -614,7 +919,7 @@ fig_aggregated_admissions <- ggplot(
   
   # Number of hospitalisations prevented
   scale_y_continuous(
-    expand = expansion(mult = c(0.02, 0.02)),
+    expand = expansion(mult=c(0.02, 0.01)),
     labels = scales::label_comma()
   ) +
   
@@ -630,57 +935,19 @@ fig_aggregated_admissions <- ggplot(
     colour = "black"
   ) +
   
-  theme_bw(base_size = 10) +
-  
+  common_theme +
   theme(
-    axis.title = element_text(size = 11),
-    axis.text = element_text(size = 10),
-    
-    strip.text = element_text(
-      size = 11,
-      face = "bold",
-      margin = margin(t = 4, r = 4, b = 4, l = 4)
-    ),
-    strip.background = element_rect(
-      colour = "black",
-      fill = "white",
-      linewidth = 0.5
-    ),
-    
     legend.position = "bottom",
     legend.direction = "horizontal",
     legend.justification = "center",
-    legend.title = element_text(size = 10),
-    legend.text = element_text(size = 10),
-    legend.spacing.x = unit(0.3, "cm"),
-    legend.margin = margin(t=2, r = 0, b = 0, l = 0),
-    
     legend.background = element_blank(),
     legend.box.background = element_rect(
       colour = "black",
       fill = NA,
       linewidth = 0.35
-    ),
-    legend.box.margin = margin(
-      t = 5,
-      r = 8,
-      b = 5,
-      l = 8
-    ),
-    
-    panel.grid.minor = element_blank(),
-    panel.grid.major.x = element_blank(),
-    
-    panel.spacing = unit(0.35, "cm"),
-    
-    plot.margin = margin(
-      t = 4,
-      r = 4,
-      b = 4,
-      l = 4
     )
-  )
-
+  ) 
+  
 # Save figure
 ggsave(
   filename = file.path(
@@ -688,10 +955,11 @@ ggsave(
     "hospitalisations_prevented_by_source_60coverage.png"
   ),
   plot = fig_aggregated_admissions,
-  width = 6.3,
-  height = 7.2,
+  width = 7.33,
+  height = 8.38,
   units = "in",
-  dpi = 600
+  device = "png",
+  dpi = 300
 )
 
 ################################################################################
@@ -725,8 +993,6 @@ df_adm_age_sources <- bind_rows(
     scen_effect == "Central"
   )
 
-
-# Make sure age groups appear in the correct order
 df_adm_age_sources <- df_adm_age_sources %>%
   mutate(
     age_group = factor(
@@ -744,7 +1010,6 @@ df_adm_age_sources <- df_adm_age_sources %>%
     )
   )
 
-# Calculate summary statistics
 df_adm_age_sources_summary <- df_adm_age_sources %>%
   group_by(scen_age, age_group, source) %>%
   summarise(
@@ -771,12 +1036,11 @@ fig_age_stratified_admissions <- ggplot(
       jitter.height = 0,
       dodge.width = 0.75
     ),
-    alpha = 0.15,
-    size = 0.8,
+    alpha = 0.2,
+    size = 1.0,
     shape = 16
   ) +
   
-  # Median and 50% interval
   geom_pointrange(
     data = df_adm_age_sources_summary,
     aes(
@@ -792,11 +1056,13 @@ fig_age_stratified_admissions <- ggplot(
     linewidth = 0.65,
     fatten = 2
   ) +
+  
   geom_vline(
     xintercept = which(levels(factor(df_adm_age_sources$age_group)) == "All") - 0.5,
-    linewidth = 1,
+    linewidth = 0.8,
     colour = "black"
   ) +
+  
   # Separate panels for the two LAIV age ranges
   facet_wrap(
     ~scen_age,
@@ -807,14 +1073,13 @@ fig_age_stratified_admissions <- ggplot(
     ))
   ) +
   
-  # Colours indicate hospitalisation data source
   scale_color_brewer(
-    "Hospitalisation data source",
+    "Hospitalisation burden",
     palette = "Dark2",
     labels = c(
-      "AIHW" = "AIHW",
-      "FluCAN - high" = "FluCAN adjusted – high",
-      "FluCAN - low" = "FluCAN adjusted – low"
+      "AIHW" = "Primary analysis (AIHW 2023)",
+      "FluCAN - high" = "High burden",
+      "FluCAN - low" = "Low burden"
     ),
     guide = guide_legend(
       direction = "horizontal",
@@ -824,9 +1089,19 @@ fig_age_stratified_admissions <- ggplot(
     )
   ) +
   
+  scale_x_discrete(
+    labels = c(
+      "1-4" = "1-<5",
+      "5-11" = "5-<12",
+      "12-17" = "12-<18",
+      "18-64" = "18-<65",
+      "65-79" = "65-<80"
+    )
+  ) +
+  
   # Number of hospitalisations prevented
   scale_y_continuous(
-    expand = expansion(mult = c(0.02, 0.02)),
+    expand = expansion(mult = c(0.02, 0.01)),
     labels = scales::label_comma()
   ) +
   
@@ -842,58 +1117,20 @@ fig_age_stratified_admissions <- ggplot(
     colour = "black"
   ) +
   
-  theme_bw(base_size = 10) +
-  
+  common_theme +
   theme(
-    axis.title = element_text(size = 11),
-    axis.text.x = element_text(
-      size = 10,
-      angle = 30,
-      hjust = 1
-    ),
-    axis.text.y = element_text(size = 10),
-    
-    strip.text = element_text(
-      size = 11,
-      face = "bold",
-      margin = margin(t = 4, r = 4, b = 4, l = 4)
-    ),
-    strip.background = element_rect(
-      colour = "black",
-      fill = "white",
-      linewidth = 0.5
-    ),
-    
     legend.position = "bottom",
     legend.direction = "horizontal",
     legend.justification = "center",
-    legend.title = element_text(size = 10),
-    legend.text = element_text(size = 10),
-    legend.spacing.x = unit(0.3, "cm"),
-    legend.margin = margin(t=2, r = 0, b = 0, l = 0),
-    
     legend.background = element_blank(),
     legend.box.background = element_rect(
       colour = "black",
       fill = NA,
       linewidth = 0.35
     ),
-    legend.box.margin = margin(
-      t = 5,
-      r = 8,
-      b = 5,
-      l = 8
-    ),
-    panel.grid.minor = element_blank(),
-    panel.grid.major.x = element_blank(),
-    
-    panel.spacing = unit(0.35, "cm"),
-    
-    plot.margin = margin(
-      t = 4,
-      r = 4,
-      b = 4,
-      l = 4
+    axis.text.x = element_text(
+      angle = 30,
+      hjust = 1
     )
   )
 
@@ -904,10 +1141,11 @@ ggsave(
     "hospitalisations_prevented_by_age_source_60coverage.png"
   ),
   plot = fig_age_stratified_admissions,
-  width = 6.3,
-  height = 7.2,
+  width = 7.33,
+  height = 8.38,
   units = "in",
-  dpi = 600
+  device = "png",
+  dpi = 300
 )
 
 ##############################################################################################################
@@ -943,8 +1181,6 @@ df_adm_age_sources <- bind_rows(
     scen_effect == "Central"
   )
 
-
-# Make sure age groups appear in the correct order
 df_adm_age_sources <- df_adm_age_sources %>%
   mutate(
     age_group = factor(
@@ -962,8 +1198,6 @@ df_adm_age_sources <- df_adm_age_sources %>%
     )
   )
 
-
-# Calculate summary statistics
 df_adm_age_sources_summary <- df_adm_age_sources %>%
   group_by(scen_age, age_group, source) %>%
   summarise(
@@ -973,8 +1207,6 @@ df_adm_age_sources_summary <- df_adm_age_sources %>%
     .groups = "drop"
   )
 
-
-# Produce figure
 fig_age_stratified_admissions_perc <- ggplot(
   df_adm_age_sources,
   aes(
@@ -984,15 +1216,14 @@ fig_age_stratified_admissions_perc <- ggplot(
   )
 ) +
   
-  # Individual model particles
   geom_point(
     position = position_jitterdodge(
       jitter.width = 0.35,
       jitter.height = 0,
       dodge.width = 0.75
     ),
-    alpha = 0.15,
-    size = 0.8,
+    alpha = 0.2,
+    size = 1.0,
     shape = 16
   ) +
   
@@ -1014,7 +1245,7 @@ fig_age_stratified_admissions_perc <- ggplot(
   ) +
   geom_vline(
     xintercept = which(levels(factor(df_adm_age_sources$age_group)) == "All") - 0.5,
-    linewidth = 1,
+    linewidth = 0.8,
     colour = "black"
   ) +
   
@@ -1028,14 +1259,13 @@ fig_age_stratified_admissions_perc <- ggplot(
     ))
   ) +
   
-  # Colours indicate hospitalisation data source
   scale_color_brewer(
-    "Hospitalisation data source",
+    "Hospitalisation burden",
     palette = "Dark2",
     labels = c(
-      "AIHW" = "AIHW",
-      "FluCAN - high" = "FluCAN adjusted – high",
-      "FluCAN - low" = "FluCAN adjusted – low"
+      "AIHW" = "Primary analysis",
+      "FluCAN - high" = "High burden",
+      "FluCAN - low" = "Low burden"
     ),
     guide = guide_legend(
       direction = "horizontal",
@@ -1045,15 +1275,25 @@ fig_age_stratified_admissions_perc <- ggplot(
     )
   ) +
   
+  scale_x_discrete(
+    labels = c(
+      "1-4" = "1-<5",
+      "5-11" = "5-<12",
+      "12-17" = "12-<18",
+      "18-64" = "18-<65",
+      "65-79" = "65-<80"
+    )
+  ) +
+  
   # Number of hospitalisations prevented
   scale_y_continuous(
-    expand = expansion(mult = c(0.02, 0.02)),
+    expand = expansion(mult = c(0.02, 0.01)),
     labels = scales::label_comma()
   ) +
   
   labs(
     x = "Age group (years)",
-    y = "Proportion of hospitalisations prevented per 100,000"
+    y = "Proportion of hospitalisations prevented"
   ) +
   
   geom_hline(
@@ -1063,78 +1303,47 @@ fig_age_stratified_admissions_perc <- ggplot(
     colour = "black"
   ) +
   
-  theme_bw(base_size = 10) +
+    common_theme +
   
   theme(
-    axis.title = element_text(size = 11),
-    axis.text.x = element_text(
-      size = 10,
-      angle = 30,
-      hjust = 1
-    ),
-    axis.text.y = element_text(size = 10),
-    
-    strip.text = element_text(
-      size = 11,
-      face = "bold",
-      margin = margin(t = 4, r = 4, b = 4, l = 4)
-    ),
-    strip.background = element_rect(
-      colour = "black",
-      fill = "white",
-      linewidth = 0.5
-    ),
-    
     legend.position = "bottom",
     legend.direction = "horizontal",
     legend.justification = "center",
-    legend.title = element_text(size = 10),
-    legend.text = element_text(size = 10),
-    legend.spacing.x = unit(0.3, "cm"),
-    legend.margin = margin(t=2, r = 0, b = 0, l = 0),
-    
     legend.background = element_blank(),
     legend.box.background = element_rect(
       colour = "black",
       fill = NA,
       linewidth = 0.35
     ),
-    legend.box.margin = margin(
-      t = 5,
-      r = 8,
-      b = 5,
-      l = 8
-    ),
-    panel.grid.minor = element_blank(),
-    panel.grid.major.x = element_blank(),
-    
-    panel.spacing = unit(0.35, "cm"),
-    
-    plot.margin = margin(
-      t = 4,
-      r = 4,
-      b = 4,
-      l = 4
+    axis.text.x = element_text(
+      angle = 30,
+      hjust = 1
     )
   )
 
-# Save figure
 ggsave(
   filename = file.path(
     output_path,
     "hospitalisations_prevented_by_age_source_60coverage_perc.png"
   ),
   plot = fig_age_stratified_admissions_perc,
-  width = 6.3,
-  height = 7.2,
+  width = 7.33,
+  height = 8.38,
   units = "in",
-  dpi = 600
+  device = "png",
+  dpi = 300
 )
 
 ##############################################################################################################
+##############################################################################################################
 
-# Figure 3 Panel A
-# Figure Infection reduction as a function of age group, per ve 
+##############################################################################################################
+# FIGURE AGE-STRATIEFIED REDUCTIONS AND NEGATIVE RESULTS
+##############################################################################################################
+
+##############################################################################################################
+# PANEL A
+##############################################################################################################
 
 fig_age_results <- ggplot(df_inf_age[df_inf_age$scen_effect=="Central" &df_inf_age$scen_age %in% c("LAIV in 5-18 year olds"),], aes(x=age_group, y= outcome_per, color=scen_coverage))+
   geom_point(position = position_jitterdodge(jitter.width = 0.5, jitter.height = 0), alpha=0.2, shape=16)+
@@ -1153,6 +1362,7 @@ fig_age_results <- ggplot(df_inf_age[df_inf_age$scen_effect=="Central" &df_inf_a
     limits = c(NA, 1),
     expand = expansion(mult=c(0.02, 0)),
     breaks=c(-0.2,0,0.2,0.4,0.6,0.8,1.0))+
+  
   scale_x_discrete(
     labels = c(
       "1-4" = "1-<5",
@@ -1177,8 +1387,8 @@ fig_age_results <- ggplot(df_inf_age[df_inf_age$scen_effect=="Central" &df_inf_a
     panel.grid.minor.x = element_blank(),
     panel.grid.major.x = element_blank(),
     legend.position = "bottom",
-    legend.title = element_text(size = text_size_other),
-    legend.text = element_text(size = text_size_other),
+    legend.title = element_text(size = text_size_legend_title),
+    legend.text = element_text(size = text_size_legend_text),
     
     axis.title.x = element_text(size = text_size_axis_title),
     axis.title.y = element_text(size = text_size_axis_title),
@@ -1193,14 +1403,12 @@ fig_age_results <- ggplot(df_inf_age[df_inf_age$scen_effect=="Central" &df_inf_a
     )
   )
 
-# fig_age_results
-# 
-# ggsave(file.path(output_path, paste("inf_red_per_age_for_ve.png", sep = "")), height = 10, width = 14, dpi = 300)
+ggsave(file.path(output_path, paste("inf_red_per_age_for_ve.png", sep = "")), fig_age_results, height = 10, width = 14, dpi = 300)
 
 
 ##############################################################################################################
-# Figure 3 panel B
-# Negative particle plot - Panel instances of negatives
+# PANEL B
+##############################################################################################################
 
 lookup_worst_reductions_idx <- df_inf_all %>%
   ungroup() %>%
@@ -1277,13 +1485,13 @@ p1 <- ggplot(
     legend.direction = "vertical",
     
     legend.background = element_rect(
-      fill = alpha("white", 0.85),
+      fill = alpha("white", 0.5),
       colour = "black"
     ),
     
     legend.key.width = grid::unit(1.4, "cm"),
-    legend.title = element_text(size = text_size_other),
-    legend.text = element_text(size = text_size_other),
+    legend.title = element_text(size = text_size_legend_title),
+    legend.text = element_text(size = text_size_legend_text+1),
     
     strip.background = element_rect(color = "black", fill = "white"),
     panel.grid.minor.y = element_blank(),
@@ -1337,7 +1545,8 @@ fig_worst <-
 # ggsave(file.path(output_path, paste("negative_reduction_analysis_plot.png", sep = "")), height = 10, width = 14, dpi = 300)
 
 ################################################################################
-# Figure 3 panel C
+# PANEL C
+################################################################################
 # Negative particle plot - Panel peak time vs shift peak plot
 # Version with only Baseline and Central 5-18, 60% coverage
 
@@ -1408,18 +1617,18 @@ make_timing_plot <- function(data, scenario_name, plot_title, show_x = TRUE, sho
       labels = function(x) {
         ifelse(abs(x) < 1e-10, "0", sprintf("%.2f", x))
       },
-      name = "Proportion of infections prevented in\nCentral 5 to <18 years compared to Baseline",
+      name = "Proportion of infections prevented in\nCentral 5 to <18 years",
       guide = guide_colourbar(
         title.position = "top",
         title.hjust = 0.5,
         barwidth = grid::unit(15, "cm"),
         barheight = grid::unit(0.55, "cm"),
-        title.theme = element_text(size = text_size_other, margin = margin(b = 2)),
-        label.theme = element_text(size = text_size_axis_text)
+        title.theme = element_text(size = text_size_legend_title, margin = margin(b = 2)),
+        label.theme = element_text(size = text_size_legend_text)
       )
     ) +
     labs(
-      x = if (show_x) "Peak infection incidence day" else NULL,
+      x = if (show_x) "Peak infection day" else NULL,
       y = if (show_y) "Peak transmissibility day" else NULL
     ) +
     theme_bw(base_size = text_size_other) +
@@ -1543,20 +1752,17 @@ fig_timing <-
       b = 2,
       l = 2
     ),
-    legend.title = element_text(size = text_size_other, hjust = 0.5, margin = margin(b = 2)),
-    legend.text = element_text(size = text_size_axis_text)
+    legend.title = element_text(size = text_size_legend_title, hjust = 0.5, margin = margin(b = 2)),
+    legend.text = element_text(size = text_size_legend_text)
   )
 
 # fig_timing
 # 
 # ggsave(file.path(output_path, paste("Diagonal_peak_plot_single_scenario.png", sep = "")), height = 7, width = 11, dpi = 300)
 
-
 ################################################################################
-
+# COMBINED PANELS
 ################################################################################
-
-# Figure 3 - Combined panels
 
 # Function for making a left-aligned panel label
 make_panel_label <- function(label, parse = FALSE) {
@@ -1674,12 +1880,129 @@ ggsave(
 )
 
 ################################################################################
-
 ################################################################################
-# Figure 5
-# Hospitalisation comparisons for good and bad years
+# SUPPLEMENTS
+################################################################################
 
+##############################################################################################################
+# BASELINE INFECTION ATTACK RATE
+##############################################################################################################
+df_baseline_only <- df_inf %>%
+  filter(scenario == "Status_quo")
 
+df_baseline_only$age_group <- factor(df_baseline_only$age_group, levels = age_levels)
+
+fig_baseline_inf_ar <- ggplot(df_baseline_only, aes(x = age_group, y = value)) +
+  geom_point(position = position_jitterdodge(jitter.width = 0.5, jitter.height = 0), colour = "royalblue", alpha=0.2, size = 1.0, shape=16)+
+  
+  scale_x_discrete(
+    labels = c(
+      "<1"     = "<1",
+      "1-4"   = "1–<5",
+      "5-11"  = "5–<12",
+      "12-17" = "12–<18",
+      "18-64" = "18–<65",
+      "65-79" = "65–<80",
+      "80+"   = "80+",
+      "All"   = "All"
+    )
+  ) +
+  
+  scale_y_continuous(
+    expand = expansion(mult=c(0.02, 0.01)),
+    labels = function(x) x / 1e5
+  )+
+  
+  labs(
+    x = "Age group (years)",
+    y = "Infection attack rate ('00000s)"
+  )+
+  geom_hline(
+    yintercept = 0,
+    linetype = "dashed",
+    linewidth = 0.45,
+    colour = "black"
+  )+
+  geom_vline(
+    xintercept = which(levels(factor(df_baseline_only$age_group)) == "All") - 0.5,
+    linewidth = 0.8,
+    colour = "black"
+  ) +
+  common_theme +
+  theme(
+    axis.text.x = element_text(
+      # size = 10,
+      angle = 30,
+      hjust = 1
+    )
+  )
+
+ggsave(file.path(output_path, paste("baseline_infection_ar.png", sep = "")), fig_baseline_inf_ar, height = 5.0, width = 7.33, dpi = 300)
+
+##############################################################################################################
+
+##############################################################################################################
+# BASELINE INFECTION ATTACK RATE PER 100,000 PER AGE GROUP
+##############################################################################################################
+df_baseline_only <- df_inf %>%
+  filter(scenario == "Status_quo") %>%
+  left_join(ages, by = "age_group") %>%
+  mutate(ipht = 100000 * value / pop_size)
+
+df_baseline_only$age_group <- factor(df_baseline_only$age_group, levels = age_levels)
+
+fig_baseline_inf_ar_per_ht <- ggplot(df_baseline_only, aes(x = age_group, y = ipht)) +
+  geom_point(position = position_jitterdodge(jitter.width = 0.5, jitter.height = 0), colour = "royalblue", alpha=0.2, size = 1.0, shape=16)+
+  
+  scale_x_discrete(
+    labels = c(
+      "<1"     = "<1",
+      "1-4"   = "1–<5",
+      "5-11"  = "5–<12",
+      "12-17" = "12–<18",
+      "18-64" = "18–<65",
+      "65-79" = "65–<80",
+      "80+"   = "80+",
+      "All"   = "All"
+    )
+  ) +
+  
+  scale_y_continuous(
+    expand = expansion(mult=c(0.02, 0.01)),
+    labels = function(x) x / 1e4
+  )+
+  
+  labs(
+    x = "Age group (years)",
+    y = "Infection attack rate per 100,000 ('0000s)"
+  )+
+  geom_hline(
+    yintercept = 0,
+    linetype = "dashed",
+    linewidth = 0.45,
+    colour = "black"
+  )+
+  geom_vline(
+    xintercept = which(levels(factor(df_baseline_only$age_group)) == "All") - 0.5,
+    linewidth = 0.8,
+    colour = "black"
+  ) +
+  common_theme +
+  theme(
+    axis.text.x = element_text(
+      # size = 10,
+      angle = 30,
+      hjust = 1
+    )
+  )
+
+ggsave(file.path(output_path, paste("baseline_infection_ar_per_100k.png", sep = "")), fig_baseline_inf_ar_per_ht, height = 5.0, width = 7.33, dpi = 300)
+
+##############################################################################################################
+
+##############################################################################################################
+# SENTITIVITY ANALYSIS FIGURES
+##############################################################################################################
 
 ################################################################################
 # Figure 6
@@ -1706,23 +2029,37 @@ df_inf_age_peak_beta_summary <- df_inf_age_peak_beta %>%
     .groups = "drop"
   )
 
-ggplot(df_inf_age_peak_beta, aes(x=age_group, y= outcome_per, color=peak_beta_category))+
-  geom_point(position = position_jitterdodge(jitter.width = 0.5, jitter.height = 0), alpha=0.2, shape=16)+
+fig_max_beta_sensitivity <- ggplot(df_inf_age_peak_beta, aes(x=age_group, y= outcome_per, color=peak_beta_category))+
+  geom_point(position = position_jitterdodge(jitter.width = 0.5, jitter.height = 0), alpha=0.2, size = 1.0, shape=16)+
+  
   geom_pointrange(data= df_inf_age_peak_beta_summary,
                   aes(x=age_group, y=median_per, ymin=lwr50_per, ymax=upr50_per,  group=peak_beta_category),
                   position = position_jitterdodge(jitter.width = 0.0, jitter.height = 0),
-                  shape=95,size=1, color="black")+
-  scale_color_brewer("Day of\nmaximal beta",palette="Dark2",
-                     guide = guide_legend(
-                       override.aes = list(
-                         alpha = 1,
-                         size = 2
-                       )
-                     ))+
+                  inherit.aes = FALSE,
+                  linewidth = 0.65,
+                  fatten = 2,
+                  # shape=95,
+                  color="black")+
+  
+  scale_color_brewer(
+    expression("Day of maximal " * beta),
+    # "Day of maximal beta",
+    palette="Dark2",
+    guide = guide_legend(
+      direction = "horizontal",
+      title.position = "top",
+      title.hjust = 0.5,
+      override.aes = list(alpha = 1, size = 2)
+      )
+    )+
+  
   scale_y_continuous(
     limits = c(NA, 1),
-    expand = expansion(mult=c(0.02, 0)),
-    breaks=c(-0.2,0,0.2,0.4,0.6,0.8,1.0))+
+    expand = expansion(mult=c(0.02, 0.01)),
+    breaks= seq(-0.2, 1, by = 0.2),
+    # breaks=c(-0.2,0,0.2,0.4,0.6,0.8,1.0))+
+    labels = scales::label_number(accuracy = 0.1)) +
+  
   scale_x_discrete(
     labels = c(
       "1-4" = "1-<5",
@@ -1732,41 +2069,40 @@ ggplot(df_inf_age_peak_beta, aes(x=age_group, y= outcome_per, color=peak_beta_ca
       "65-79" = "65-<80"
     )
   ) +
+  
   xlab("Age-group")+
   ylab("Proportion of infections prevented")+
-  geom_hline(yintercept = 0, linetype="dashed", color="black")+
+  
+  geom_hline(yintercept = 0, linetype="dashed", linewidth = 0.45, colour="black")+
+  
   geom_vline(
     xintercept = which(levels(factor(df_inf_age$age_group)) == "All") - 0.5,
-    linewidth = 1,
+    linewidth = 0.8,
     colour = "black"
   ) +
-  theme_bw(base_size = text_size_other)+
-  theme(legend.background= element_rect(color="black"),
-        strip.background = element_rect(color="black", fill="white"),
-        panel.grid.minor.x = element_blank(),
-        panel.grid.major.x = element_blank(),
-        legend.position = "bottom",
-        legend.title = element_text(size = text_size_other),
-        legend.text = element_text(size = text_size_other),
-        
-        axis.title.x = element_text(size = text_size_axis_title),
-        axis.title.y = element_text(size = text_size_axis_title),
-        
-        axis.text.x = element_text(
-          size = text_size_axis_text,
-          colour = "black"
-        ),
-        axis.text.y = element_text(
-          size = text_size_axis_text,
-          colour = "black"
-        )
-  )
 
-ggsave(file.path(output_path, paste("Peak_beta_sensitivity_of_infections_central_scenario.png", sep = "")), height = 10, width = 14, dpi = 300)
+  common_theme +
+  
+  theme(
+    legend.position = "bottom",
+    legend.direction = "horizontal",
+    legend.justification = "center",
+    
+    legend.background = element_blank(),
+    legend.box.background = element_rect(
+      colour = "black",
+      fill = NA,
+      linewidth = 0.35
+    ),
+    
+    axis.text.x = element_text(
+      # size = 10,
+      angle = 30,
+      hjust = 1
+    )
+  )  
 
-# rm(df_inf_age_peak_beta, df_inf_age_peak_beta_summary, lookup_table_peak_beta)
-
-################################################################################
+ggsave(file.path(output_path, paste("Peak_beta_sensitivity_of_infections_central_scenario.png", sep = "")), fig_max_beta_sensitivity, height = 5.0, width = 7.33, dpi = 300)
 
 ################################################################################
 
@@ -1779,9 +2115,9 @@ df_inf_age_waning <- df_inf_age %>%
   mutate(half_life_category = factor(half_life_category, levels=c("<= 2y", "2y - 3y", "3y - 4y", "> 4y"))) %>%
   filter(
     scen_effect == "Central" &
-    scen_coverage == "60%" &
+      scen_coverage == "60%" &
       scen_age == "LAIV in 5-18 year olds"
-    )
+  )
 
 df_inf_age_waning_summary <- df_inf_age_waning %>%
   group_by(scenario, age_group, half_life_category) %>%
@@ -1795,56 +2131,75 @@ df_inf_age_waning_summary <- df_inf_age_waning %>%
     .groups = "drop"
   )
 
-ggplot(df_inf_age_waning, aes(x=age_group, y= outcome_per, color=half_life_category))+
-  geom_point(position = position_jitterdodge(jitter.width = 0.5, jitter.height = 0), alpha=0.2, shape=16)+
+fig_waning_sensitivity <- ggplot(df_inf_age_waning, aes(x=age_group, y= outcome_per, color=half_life_category))+
+  geom_point(position = position_jitterdodge(jitter.width = 0.5, jitter.height = 0), alpha=0.2, size = 1.0, shape=16)+
+  
   geom_pointrange(data= df_inf_age_waning_summary,
                   aes(x=age_group, y=median_per, ymin=lwr50_per, ymax=upr50_per,  group=half_life_category),
                   position = position_jitterdodge(jitter.width = 0.0, jitter.height = 0),
-                  shape=95,size=1, color="black")+
-  scale_color_brewer("Waning\nhalf-life",palette="Dark2",
+                  inherit.aes = FALSE,
+                  linewidth = 0.65,
+                  fatten = 2,
+                  colour = "black")+
+  
+  scale_color_brewer("Waning half-life",palette="Dark2",
                      guide = guide_legend(
-                       override.aes = list(
-                         alpha = 1,
-                         size = 2
+                       direction = "horizontal",
+                       title.position = "top",
+                       title.hjust = 0.5,
+                       override.aes = list(alpha = 1, size = 2)
                        )
-                     ))+
+                     )+
+  
+  scale_x_discrete(
+    labels = c(
+      "1-4" = "1-<5",
+      "5-11" = "5-<12",
+      "12-17" = "12-<18",
+      "18-64" = "18-<65",
+      "65-79" = "65-<80"
+    )
+  ) +
+  
   scale_y_continuous(
     limits = c(NA, 1),
-    expand = expansion(mult=c(0.02, 0)),
-    breaks=c(-0.2,0,0.2,0.4,0.6,0.8,1.0))+
+    expand = expansion(mult=c(0.02, 0.01)),
+    breaks= seq(-0.2, 1, by = 0.2),
+    labels = scales::label_number(accuracy = 0.1))+
+  
   xlab("Age-group")+
   ylab("Proportion of infections prevented")+
+  
   geom_hline(yintercept = 0, linetype="dashed", color="black")+
+  
   geom_vline(
     xintercept = which(levels(factor(df_inf_age$age_group)) == "All") - 0.5,
-    linewidth = 1,
+    linewidth = 0.8,
     colour = "black"
   ) +
-  theme_bw(base_size = text_size_other)+
-  theme(legend.background= element_rect(color="black"),
-        strip.background = element_rect(color="black", fill="white"),
-        panel.grid.minor.x = element_blank(),
-        panel.grid.major.x = element_blank(),
-        legend.position = "bottom",
-        legend.title = element_text(size = text_size_other),
-        legend.text = element_text(size = text_size_other),
-        
-        axis.title.x = element_text(size = text_size_axis_title),
-        axis.title.y = element_text(size = text_size_axis_title),
-        
-        axis.text.x = element_text(
-          size = text_size_axis_text,
-          colour = "black"
-        ),
-        axis.text.y = element_text(
-          size = text_size_axis_text,
-          colour = "black"
-        )
-        )
+  
+  common_theme +
+  
+  theme(
+    legend.position = "bottom",
+    legend.direction = "horizontal",
+    legend.justification = "center",
+    
+    legend.background = element_blank(),
+    legend.box.background = element_rect(
+      colour = "black",
+      fill = NA,
+      linewidth = 0.35
+    ),
+    
+    axis.text.x = element_text(
+      # size = 10,
+      angle = 30,
+      hjust = 1
+    )
+  )  
 
-ggsave(file.path(output_path, paste("waning_sensitivity_of_infections_central_scenario.png", sep = "")), height = 10, width = 14, dpi = 300)
-
-rm(df_inf_age_waning, df_inf_age_waning_summary, lookup_table_half_life)
+ggsave(file.path(output_path, paste("waning_sensitivity_of_infections_central_scenario.png", sep = "")), fig_waning_sensitivity, height = 5.0, width = 7.33, dpi = 300)
 
 ################################################################################
 
@@ -1873,56 +2228,74 @@ df_inf_age_AR_summary <- df_inf_age_AR %>%
     .groups = "drop"
   )
 
-ggplot(df_inf_age_AR, aes(x=age_group, y= outcome_per, color=AR_category))+
-  geom_point(position = position_jitterdodge(jitter.width = 0.5, jitter.height = 0), alpha=0.2, shape=16)+
+fig_ar_sensitivity <- ggplot(df_inf_age_AR, aes(x=age_group, y= outcome_per, color=AR_category))+
+  geom_point(position = position_jitterdodge(jitter.width = 0.5, jitter.height = 0), alpha=0.2, size = 1.0, shape=16)+
   geom_pointrange(data= df_inf_age_AR_summary,
                   aes(x=age_group, y=median_per, ymin=lwr50_per, ymax=upr50_per,  group=AR_category),
                   position = position_jitterdodge(jitter.width = 0.0, jitter.height = 0),
-                  shape=95,size=1, color="black")+
-  scale_color_brewer("Baseline\nattack rate\n% of population",palette="Dark2",
+                  inherit.aes = FALSE,
+                  linewidth = 0.65,
+                  fatten = 2,
+                  color="black")+
+  
+  scale_color_brewer("Baseline attack rate (% of population)",palette="Dark2",
                      guide = guide_legend(
-                       override.aes = list(
-                         alpha = 1,
-                         size = 2
+                       direction = "horizontal",
+                       title.position = "top",
+                       title.hjust = 0.5,
+                       override.aes = list(alpha = 1, size = 2)
                        )
-                     ))+
+                     )+
+  
+  scale_x_discrete(
+    labels = c(
+      "1-4" = "1-<5",
+      "5-11" = "5-<12",
+      "12-17" = "12-<18",
+      "18-64" = "18-<65",
+      "65-79" = "65-<80"
+    )
+  ) +
+  
   scale_y_continuous(
     limits = c(NA, 1),
-    expand = expansion(mult=c(0.02, 0)),
-    breaks=c(-0.2,0,0.2,0.4,0.6,0.8,1.0))+
+    expand = expansion(mult=c(0.02, 0.01)),
+    breaks= seq(-0.2, 1, by = 0.2),
+    labels = scales::label_number(accuracy = 0.1)) +
+  
   xlab("Age-group")+
   ylab("Proportion of infections prevented")+
-  geom_hline(yintercept = 0, linetype="dashed", color="black")+
+  
+  geom_hline(yintercept = 0, linetype="dashed", linewidth = 0.45, color="black")+
+  
   geom_vline(
     xintercept = which(levels(factor(df_inf_age$age_group)) == "All") - 0.5,
-    linewidth = 1,
+    linewidth = 0.8,
     colour = "black"
   ) +
-  theme_bw(base_size = text_size_other)+
-  theme(legend.background= element_rect(color="black"),
-        strip.background = element_rect(color="black", fill="white"),
-        panel.grid.minor.x = element_blank(),
-        panel.grid.major.x = element_blank(),
-        legend.position = "bottom",
-        legend.title = element_text(size = text_size_other),
-        legend.text = element_text(size = text_size_other),
-        
-        axis.title.x = element_text(size = text_size_axis_title),
-        axis.title.y = element_text(size = text_size_axis_title),
-        
-        axis.text.x = element_text(
-          size = text_size_axis_text,
-          colour = "black"
-        ),
-        axis.text.y = element_text(
-          size = text_size_axis_text,
-          colour = "black"
-        )
-  )
+  
+  common_theme +
+  
+  theme(
+    legend.position = "bottom",
+    legend.direction = "horizontal",
+    legend.justification = "center",
+    
+    legend.background = element_blank(),
+    legend.box.background = element_rect(
+      colour = "black",
+      fill = NA,
+      linewidth = 0.35
+    ),
+    
+    axis.text.x = element_text(
+      # size = 10,
+      angle = 30,
+      hjust = 1
+    )
+  )  
 
-ggsave(file.path(output_path, paste("AR_sensitivity_of_infections_central_scenario.png", sep = "")), height = 10, width = 14, dpi = 300)
-
-rm(df_inf_age_AR, df_inf_age_AR_summary, lookup_table_AR)
+ggsave(file.path(output_path, paste("AR_sensitivity_of_infections_central_scenario.png", sep = "")), fig_ar_sensitivity, height = 5.0, width = 7.33, dpi = 300)
 
 ################################################################################
 
@@ -1977,56 +2350,76 @@ df_inf_age_peak_time_summary <- df_inf_age_peak_time %>%
     .groups = "drop"
   )
 
-ggplot(df_inf_age_peak_time, aes(x=age_group, y= outcome_per, color=peak_time_category))+
-  geom_point(position = position_jitterdodge(jitter.width = 0.5, jitter.height = 0), alpha=0.2, shape=16)+
+fig_peak_timing_sensitivity <- ggplot(df_inf_age_peak_time, aes(x=age_group, y= outcome_per, color=peak_time_category))+
+  geom_point(position = position_jitterdodge(jitter.width = 0.5, jitter.height = 0), alpha=0.2, size = 1.0, shape=16)+
   geom_pointrange(data= df_inf_age_peak_time_summary,
                   aes(x=age_group, y=median_per, ymin=lwr50_per, ymax=upr50_per,  group=peak_time_category),
                   position = position_jitterdodge(jitter.width = 0.0, jitter.height = 0),
-                  shape=95,size=1, color="black")+
-  scale_color_brewer("Baseline\npeak time",palette="Dark2",
+                  inherit.aes = FALSE,
+                  linewidth = 0.65,
+                  fatten = 2,
+                  color="black")+
+  
+  scale_color_brewer("Baseline peak time",palette="Dark2",
                      guide = guide_legend(
-                       override.aes = list(
-                         alpha = 1,
-                         size = 2
+                       direction = "horizontal",
+                       title.position = "top",
+                       title.hjust = 0.5,
+                       override.aes = list(alpha = 1, size = 2)
                        )
-                     ))+
+                     )+
+  
+  scale_x_discrete(
+    labels = c(
+      "1-4" = "1-<5",
+      "5-11" = "5-<12",
+      "12-17" = "12-<18",
+      "18-64" = "18-<65",
+      "65-79" = "65-<80"
+    )
+  ) +
+  
   scale_y_continuous(
     limits = c(NA, 1),
-    expand = expansion(mult=c(0.02, 0)),
-    breaks=c(-0.2,0,0.2,0.4,0.6,0.8,1.0))+
+    expand = expansion(mult=c(0.02, 0.01)),
+    breaks= seq(-0.2, 1, by = 0.2),
+    labels = scales::label_number(accuracy = 0.1)) +
+  
   xlab("Age-group")+
   ylab("Proportion of infections prevented")+
+  
   geom_hline(yintercept = 0, linetype="dashed", color="black")+
+  
   geom_vline(
     xintercept = which(levels(factor(df_inf_age$age_group)) == "All") - 0.5,
-    linewidth = 1,
+    linewidth = 0.8,
     colour = "black"
   ) +
-  theme_bw(base_size = text_size_other)+
-  theme(legend.background= element_rect(color="black"),
-        strip.background = element_rect(color="black", fill="white"),
-        panel.grid.minor.x = element_blank(),
-        panel.grid.major.x = element_blank(),
-        legend.position = "bottom",
-        legend.title = element_text(size = text_size_other),
-        legend.text = element_text(size = text_size_other),
-        
-        axis.title.x = element_text(size = text_size_axis_title),
-        axis.title.y = element_text(size = text_size_axis_title),
-        
-        axis.text.x = element_text(
-          size = text_size_axis_text,
-          colour = "black"
-        ),
-        axis.text.y = element_text(
-          size = text_size_axis_text,
-          colour = "black"
-        )
-  )
+  
+  common_theme +
+  
+  theme(
+    legend.position = "bottom",
+    legend.direction = "horizontal",
+    legend.justification = "center",
+    
+    legend.background = element_blank(),
+    legend.box.background = element_rect(
+      colour = "black",
+      fill = NA,
+      linewidth = 0.35
+    ),
+    
+    axis.text.x = element_text(
+      # size = 10,
+      angle = 30,
+      hjust = 1
+    )
+  )  
 
-ggsave(file.path(output_path, paste("peak_time_sensitivity_of_infections_central_scenario.png", sep = "")), height = 10, width = 14, dpi = 300)
+ggsave(file.path(output_path, paste("peak_time_sensitivity_of_infections_central_scenario.png", sep = "")), fig_peak_timing_sensitivity, height = 5.0, width = 7.33, dpi = 300)
 
-rm(df_inf_age_peak_time, df_inf_age_peak_time_summary, source_file_timing_path, scenarios_to_plot, quantiles, p33, p66, df_max_timing)
+# rm(df_inf_age_peak_time, df_inf_age_peak_time_summary, source_file_timing_path, scenarios_to_plot, quantiles, p33, p66, df_max_timing)
 
 ################################################################################
 
@@ -2056,54 +2449,76 @@ df_inf_age_seasonality_beta1_summary <- df_inf_age_seasonality %>%
     .groups = "drop"
   )
 
-ggplot(df_inf_age_seasonality, aes(x=age_group, y= outcome_per, color=beta_1_category))+
-  geom_point(position = position_jitterdodge(jitter.width = 0.5, jitter.height = 0), alpha=0.2, shape=16)+
+fig_beta_seasonality_sensitivity <- ggplot(df_inf_age_seasonality, aes(x=age_group, y= outcome_per, color=beta_1_category))+
+  geom_point(position = position_jitterdodge(jitter.width = 0.5, jitter.height = 0), alpha=0.2, size = 1.0, shape=16)+
   geom_pointrange(data= df_inf_age_seasonality_beta1_summary,
                   aes(x=age_group, y=median_per, ymin=lwr50_per, ymax=upr50_per,  group=beta_1_category),
                   position = position_jitterdodge(jitter.width = 0.0, jitter.height = 0),
-                  shape=95,size=1, color="black")+
-  scale_color_brewer("Seasonality\nparameter beta_1",palette="Dark2",
-                     guide = guide_legend(
-                       override.aes = list(
-                         alpha = 1,
-                         size = 2
-                       )
-                     ))+
+                  inherit.aes = FALSE,
+                  linewidth = 0.65,
+                  fatten = 2,
+                  color="black")+
+  
+  scale_color_brewer(
+    expression("Seasonality parameter " * beta[1]),
+    palette="Dark2",
+    guide = guide_legend(
+      direction = "horizontal",
+      title.position = "top",
+      title.hjust = 0.5,
+      override.aes = list(alpha = 1, size = 2)
+    )
+  )+
+  
+  scale_x_discrete(
+    labels = c(
+      "1-4" = "1-<5",
+      "5-11" = "5-<12",
+      "12-17" = "12-<18",
+      "18-64" = "18-<65",
+      "65-79" = "65-<80"
+    )
+  ) +
+  
   scale_y_continuous(
     limits = c(NA, 1),
-    expand = expansion(mult=c(0.02, 0)),
-    breaks=c(-0.2,0,0.2,0.4,0.6,0.8,1.0))+
+    expand = expansion(mult=c(0.02, 0.01)),
+    breaks= seq(-0.2, 1, by = 0.2),
+    labels = scales::label_number(accuracy = 0.1)) +
+  
   xlab("Age-group")+
   ylab("Proportion of infections prevented")+
+  
   geom_hline(yintercept = 0, linetype="dashed", color="black")+
+  
   geom_vline(
     xintercept = which(levels(factor(df_inf_age$age_group)) == "All") - 0.5,
-    linewidth = 1,
+    linewidth = 0.8,
     colour = "black"
   ) +
-  theme_bw(base_size = text_size_other)+
-  theme(legend.background= element_rect(color="black"),
-        strip.background = element_rect(color="black", fill="white"),
-        panel.grid.minor.x = element_blank(),
-        panel.grid.major.x = element_blank(),
-        legend.position = "bottom",
-        legend.title = element_text(size = text_size_other),
-        legend.text = element_text(size = text_size_other),
-        
-        axis.title.x = element_text(size = text_size_axis_title),
-        axis.title.y = element_text(size = text_size_axis_title),
-        
-        axis.text.x = element_text(
-          size = text_size_axis_text,
-          colour = "black"
-        ),
-        axis.text.y = element_text(
-          size = text_size_axis_text,
-          colour = "black"
-        )
-  )
+  
+  common_theme +
+  
+  theme(
+    legend.position = "bottom",
+    legend.direction = "horizontal",
+    legend.justification = "center",
+    
+    legend.background = element_blank(),
+    legend.box.background = element_rect(
+      colour = "black",
+      fill = NA,
+      linewidth = 0.35
+    ),
+    
+    axis.text.x = element_text(
+      # size = 10,
+      angle = 30,
+      hjust = 1
+    )
+  )  
 
-ggsave(file.path(output_path, paste("seasonality_beta1_sensitivity_of_infections_central_scenario.png", sep = "")), height = 10, width = 14, dpi = 300)
+ggsave(file.path(output_path, paste("seasonality_beta1_sensitivity_of_infections_central_scenario.png", sep = "")),fig_beta_seasonality_sensitivity, height = 5.0, width = 7.33, dpi = 300)
 
 df_inf_age_seasonality_beta0_x_beta1_summary <- df_inf_age_seasonality %>%
   group_by(scenario, age_group, beta0_x_beta1_category) %>%
@@ -2117,491 +2532,951 @@ df_inf_age_seasonality_beta0_x_beta1_summary <- df_inf_age_seasonality %>%
     .groups = "drop"
   )
 
-ggplot(df_inf_age_seasonality, aes(x=age_group, y= outcome_per, color=beta0_x_beta1_category))+
-  geom_point(position = position_jitterdodge(jitter.width = 0.5, jitter.height = 0), alpha=0.2, shape=16)+
+fig_beta_x_beta_seasonality_sensitivity <- ggplot(df_inf_age_seasonality, aes(x=age_group, y= outcome_per, color=beta0_x_beta1_category))+
+  geom_point(position = position_jitterdodge(jitter.width = 0.5, jitter.height = 0), alpha=0.2, size = 1.0, shape=16)+
   geom_pointrange(data= df_inf_age_seasonality_beta0_x_beta1_summary,
                   aes(x=age_group, y=median_per, ymin=lwr50_per, ymax=upr50_per,  group=beta0_x_beta1_category),
                   position = position_jitterdodge(jitter.width = 0.0, jitter.height = 0),
-                  shape=95,size=1, color="black")+
-  scale_color_brewer("Seasonality parameter\n beta_0 x beta_1",palette="Dark2",
-                     guide = guide_legend(
-                       override.aes = list(
-                         alpha = 1,
-                         size = 2
-                       )
-                     ))+
+                  inherit.aes = FALSE,
+                  linewidth = 0.65,
+                  fatten = 2,
+                  color="black")+
+  
+  scale_color_brewer(
+    expression("Seasonality parameter " * beta[0] %*% beta[1]),
+    ,palette="Dark2",
+    guide = guide_legend(
+      direction = "horizontal",
+      title.position = "top",
+      title.hjust = 0.5,
+      override.aes = list(alpha = 1, size = 2)
+    )
+  )+
+  
+  scale_x_discrete(
+    labels = c(
+      "1-4" = "1-<5",
+      "5-11" = "5-<12",
+      "12-17" = "12-<18",
+      "18-64" = "18-<65",
+      "65-79" = "65-<80"
+    )
+  ) +
+  
   scale_y_continuous(
     limits = c(NA, 1),
-    expand = expansion(mult=c(0.02, 0)),
-    breaks=c(-0.2,0,0.2,0.4,0.6,0.8,1.0))+
+    expand = expansion(mult=c(0.02, 0.01)),
+    breaks= seq(-0.2, 1, by = 0.2),
+    labels = scales::label_number(accuracy = 0.1)) +
+  
   xlab("Age-group")+
   ylab("Proportion of infections prevented")+
+  
   geom_hline(yintercept = 0, linetype="dashed", color="black")+
+  
   geom_vline(
     xintercept = which(levels(factor(df_inf_age$age_group)) == "All") - 0.5,
-    linewidth = 1,
+    linewidth = 0.8,
     colour = "black"
   ) +
-  theme_bw(base_size = text_size_other)+
-  theme(legend.background= element_rect(color="black"),
-        strip.background = element_rect(color="black", fill="white"),
-        panel.grid.minor.x = element_blank(),
-        panel.grid.major.x = element_blank(),
-        legend.position = "bottom",
-        legend.title = element_text(size = text_size_other),
-        legend.text = element_text(size = text_size_other),
-        
-        axis.title.x = element_text(size = text_size_axis_title),
-        axis.title.y = element_text(size = text_size_axis_title),
-        
-        axis.text.x = element_text(
-          size = text_size_axis_text,
-          colour = "black"
-        ),
-        axis.text.y = element_text(
-          size = text_size_axis_text,
-          colour = "black"
-        )
-  )
-
-ggsave(file.path(output_path, paste("seasonality_beta0_x_beta1_sensitivity_of_infections_central_scenario.png", sep = "")), height = 10, width = 14, dpi = 300)
-
-rm(df_inf_age_seasonality, df_inf_age_seasonality_beta1_summary, df_inf_age_seasonality_beta0_x_beta1_summary, lookup_table_seasonality)
-
-################################################################################
-
-################################################################################
-# Figure 7
-# Effect of timing of vaccination
-
-source_file_path <- file.path(ROOT, paste("R outputs", source_file_type, "term2 vaccination"), "infection_ar_ds")
-
-df_inf_term2 <- open_dataset(source_file_path) %>%
-  collect()
-
-df_term2_all_ages <- df_inf_term2 %>%
-  group_by(scenario, simulation_index, run_nr) %>%
-  summarise(value = sum(value), .groups = "drop") %>%
-  mutate(age_group = "All")
-
-df_inf_term2 <- dplyr::bind_rows(df_inf_term2, df_term2_all_ages)
-rm(df_term2_all_ages)
-
-df_inf_term2$age_group <- factor(df_inf_term2$age_group, levels = age_levels)
-
-## Summarising
-cat("Loading infection data for term 2 vaccination run.\n")
-
-# Seperate dataframes for baseline vs scenarios
-df_B <- df_inf_term2[df_inf_term2$scenario=="Status_quo",]
-df_S <- df_inf_term2[df_inf_term2$scenario!="Status_quo",]  
-
-# Join data.frames ready for pairwise comparisons
-df_inf_term2 <- left_join(df_S, df_B[colnames(df_B)!="scenario"], by = c("simulation_index"="simulation_index",
-                                                                         "age_group"="age_group",
-                                                                         "run_nr"="run_nr")) %>%
-  rename(
-    value_S = value.x,
-    value_B = value.y
-  )
-
-# Age stratified outcomes
-df_inf_age_term2 <- df_inf_term2 %>%
-  group_by(scenario, simulation_index, age_group) %>%
-  summarise(
-    outcome_tot = median(value_B-value_S),
-    outcome_per = median( (value_B-value_S)/value_B ),
-    .groups = "drop"
-  )
-
-# summed across all age-groups
-df_inf_all_term2 <- df_inf_term2 %>%
-  filter(age_group == "All") %>%
-  group_by(scenario, simulation_index) %>%
-  summarise(
-    outcome_tot = median(value_B-value_S),
-    outcome_per = median( (value_B-value_S)/value_B ),
-    .groups = "drop"
-  )
-
-df_inf_age_summary_term2 <- df_inf_age_term2 %>%
-  group_by(scenario, age_group) %>%
-  summarise(
-    median_tot = median(outcome_tot),
-    median_per = median(outcome_per),
-    upr95_per = quantile(outcome_per, 0.975),
-    lwr95_per = quantile(outcome_per, 0.025),
-    upr50_per = quantile(outcome_per, 0.75),
-    lwr50_per = quantile(outcome_per, 0.25),
-    .groups = "drop"
-  )
-
-df_inf_all_summary_term2 <- df_inf_all_term2 %>%
-  group_by(scenario) %>%
-  summarise(
-    median_tot = median(outcome_tot),
-    median_per = median(outcome_per),
-    upr95_per = quantile(outcome_per, 0.975),
-    lwr95_per = quantile(outcome_per, 0.025),
-    upr50_per = quantile(outcome_per, 0.75),
-    lwr50_per = quantile(outcome_per, 0.25),
-    .groups = "drop"
-  )
-
-# Add labels for all the scenarios using look up tables
-df_inf_all_term2 <- left_join(df_inf_all_term2, lookup_table, by = c("scenario" = "scenario"))
-df_inf_age_term2 <- left_join(df_inf_age_term2, lookup_table, by = c("scenario" = "scenario"))
-df_inf_all_summary_term2 <- left_join(df_inf_all_summary_term2, lookup_table, by = c("scenario" = "scenario"))
-df_inf_age_summary_term2 <- left_join(df_inf_age_summary_term2, lookup_table, by = c("scenario" = "scenario"))  
-
-cat("Finished loading infection data for term 2 vaccination run.\n\n")
-
-rm(df_B, df_S, lookup_table)
-
-df_inf_term1 <- df_inf
-df_inf_age_term1 <- df_inf_age
-df_inf_age_summary_term1 <- df_inf_age_summary
-df_inf_all_term1 <- df_inf_all
-df_inf_all_summary_term1 <- df_inf_all_summary
-
-rm(df_inf, df_inf_age, df_inf_age_summary, df_inf_all, df_inf_all_summary)
-
-df_inf_term1_adj <- df_inf_age_term1
-df_inf_term2_adj <- df_inf_age_term2
-df_inf_term1_adj$label <- "Term 1"
-df_inf_term2_adj$label <- "Term 2"
-df_timing <- rbind(df_inf_term1_adj, df_inf_term2_adj)
-
-sum_term1 <- df_inf_age_summary_term1
-sum_term2 <- df_inf_age_summary_term2
-sum_term1$label <- "Term 1"
-sum_term2$label <- "Term 2"
-df_timing_summary <- rbind(sum_term1, sum_term2)
-
-ggplot(df_timing[df_timing$scen_effect=="Central" &df_timing$scen_age %in% c("LAIV in 5-18 year olds") &df_timing$scen_coverage=="60%",], aes(x=age_group, y= outcome_per, color=label))+
-  geom_point(position = position_jitterdodge(jitter.width = 0.5, jitter.height = 0), alpha=0.2, shape=16)+
-  geom_pointrange(data= df_timing_summary[df_timing_summary$scen_effect=="Central" &df_timing_summary$scen_age %in% c("LAIV in 5-18 year olds")&df_timing_summary$scen_coverage=="60%",,],
-                  aes(x=age_group, y=median_per,ymin=upr50_per,ymax=lwr50_per,  group=label),
-                  size=1,
-                  position = position_jitterdodge(jitter.width = 0.0, jitter.height = 0),
-                  shape=95,
-                  color="black")+
-  scale_color_brewer("LAIV\ntiming",palette="Dark2")+
-  scale_y_continuous(
-    limits = c(NA, 1),
-    expand = expansion(mult=c(0.02, 0)),
-    breaks=c(-0.2,0,0.2,0.4,0.6,0.8,1.0))+
-  xlab("Age-group")+
-  ylab("Proportion of infections prevented")+
-  geom_hline(yintercept = 0, linetype="dashed", color="black")+
-  geom_vline(
-    xintercept = which(levels(factor(df_timing$age_group)) == "All") - 0.5,
-    linewidth = 1,
-    colour = "black"
-  ) +
-  theme_bw(base_size = text_size_other)+
-  theme(legend.background= element_rect(color="black"),
-        strip.background = element_rect(color="black", fill="white"),
-        panel.grid.minor.x = element_blank(),
-        panel.grid.major.x = element_blank(),
-        legend.position = "bottom",
-        legend.title = element_text(size = text_size_other),
-        legend.text = element_text(size = text_size_other),
-        
-        axis.title.x = element_text(size = text_size_axis_title),
-        axis.title.y = element_text(size = text_size_axis_title),
-        
-        axis.text.x = element_text(
-          size = text_size_axis_text,
-          colour = "black"
-        ),
-        axis.text.y = element_text(
-          size = text_size_axis_text,
-          colour = "black"
-        )
-  )
-
-ggsave(file.path(output_path, paste("perc_inf_averted_per_timing_LAIV.png", sep = "")), height = 10, width = 14, dpi = 300)
-
-################################################################################
-# Supplements figures
-################################################################################
-# Figure 4 - Supplement
-# Negative particle plot - Panel peak time vs shift peak plot
-# Version with all 60% scenarios
-
-scenarios_to_plot <- c(
-  "Status quo", 
-  "Pessimistic_cover60_LAIV_5-12yo", "Pessimistic_cover60_LAIV_5-18yo",
-  "Central_cover60_LAIV_5-12yo", "Central_cover60_LAIV_5-18yo",
-  "Optimistic_cover60_LAIV_5-12yo", "Optimistic_cover60_LAIV_5-18yo"
-)
-
-df_max_timing <- open_dataset(source_file_timing_path) %>%
-  filter(scenario %in% scenarios_to_plot) %>%
-  collect() %>%
-  left_join(beta_peak_timing, by = "simulation_index") %>%
-  left_join(df_inf_for_colour, by = "simulation_index") %>%
-  rename(beta_peak_day = t)
-
-min_val <- min(df_max_timing$outcome_per, na.rm = TRUE)
-max_val <- max(df_max_timing$outcome_per, na.rm = TRUE)
-
-make_timing_plot <- function(data, scenario_name, plot_title, show_x = TRUE, show_y = TRUE) {
   
-  ggplot(
-    data %>%
-      filter(scenario == scenario_name), aes(x = max_day, y = beta_peak_day, colour = outcome_per)) +
-    geom_point(alpha = 0.1, size = 0.3) +
-    geom_abline(intercept = 0, slope = 1, linetype = "dashed", colour = "grey45", linewidth = 0.6) +
-    coord_fixed(xlim = c(120, 365),ylim = c(120, 365), expand = FALSE) +
-    scale_x_continuous(breaks = seq(0, 360, by = 60)) +
-    scale_y_continuous(breaks = seq(0, 360, by = 60)) +
-    scale_colour_gradientn(
-      colours = c(
-        "#67000D",
-        "#CB181D",
-        "#FC9272",
-        "grey98",
-        "#9ECAE1",
-        "#3182BD",
-        "#08519C"
-      ),
-      values = scales::rescale(
-        c(
-          min_val,
-          min_val * 0.6,
-          min_val * 0.2,
-          0,
-          0.10,
-          0.30,
-          max_val
-        ),
-        from = c(min_val, max_val)
-      ),
-      limits = c(min_val, max_val),
-      name = "Reduction \nproportion"
-    ) +
-    labs(
-      title = plot_title,
-      x = if (show_x) "Peak infection day" else NULL,
-      y = if (show_y) "Peak transmission day" else NULL
-    ) +
-    theme_bw(base_size = 14) +
-    theme(
-      plot.title = element_text(hjust = 0.5, size = 13, margin = margin(b = 8)),
-      axis.title = element_text(size = 13),
-      axis.text = element_text(size = 11, colour = "black"),
-      axis.text.x = if (show_x) {
-        element_text(size = 11, colour = "black")
-      } else {
-        element_blank()
-      },
-      axis.title.x = if (show_x) {
-        element_text(size = 13)
-      } else {
-        element_blank()
-      },
-      axis.text.y = if (show_y) {
-        element_text(size = 11, colour = "black")
-      } else {
-        element_blank()
-      },
-      axis.title.y = if (show_y) {
-        element_text(size = 13)
-      } else {
-        element_blank()
-      },
-      
-      panel.grid.minor = element_blank(),
-      panel.grid.major = element_line(
-        colour = "grey90",
-        linewidth = 0.35
-      ),
-      
-      panel.border = element_rect(
-        colour = "grey35",
-        linewidth = 0.7
-      ),
-      
-      plot.margin = margin(8, 8, 8, 8)
-    )
-}
-
-plot_layout <- tribble(
-  ~scenario_name,                          ~title,                       ~row, ~column,
-  "Status quo",                            "Baseline",                   1,       2,
-  "Pessimistic_cover60_LAIV_5-12yo",       "Pessimistic\n5–12 years",    2,       1,
-  "Central_cover60_LAIV_5-12yo",           "Central\n5–12 years",        2,       2,
-  "Optimistic_cover60_LAIV_5-12yo",        "Optimistic\n5–12 years",     2,       3,
-  "Pessimistic_cover60_LAIV_5-18yo",       "Pessimistic\n5–18 years",    3,       1,
-  "Central_cover60_LAIV_5-18yo",           "Central\n5–18 years",        3,       2,
-  "Optimistic_cover60_LAIV_5-18yo",        "Optimistic\n5–18 years",     3,       3
-)
-
-plots <- lapply(
-  seq_len(nrow(plot_layout)),
-  function(i) {
-    
-    make_timing_plot(
-      data = df_max_timing,
-      scenario_name = plot_layout$scenario_name[i],
-      plot_title = plot_layout$title[i],
-      
-      # Show x-axis only on the bottom row
-      show_x = plot_layout$row[i] == 3,
-      
-      # Show y-axis on the left column and on the baseline plot
-      show_y = plot_layout$column[i] == 1 |
-        plot_layout$scenario_name[i] == "Status quo"
-    )
-  }
-)
-
-names(plots) <- plot_layout$scenario_name
-
-fig_timing <-
-  (
-    plot_spacer() |
-      plots[["Status quo"]] |
-      plot_spacer()
-  ) /
-  (
-    plots[["Pessimistic_cover60_LAIV_5-12yo"]] |
-      plots[["Central_cover60_LAIV_5-12yo"]] |
-      plots[["Optimistic_cover60_LAIV_5-12yo"]]
-  ) /
-  (
-    plots[["Pessimistic_cover60_LAIV_5-18yo"]] |
-      plots[["Central_cover60_LAIV_5-18yo"]] |
-      plots[["Optimistic_cover60_LAIV_5-18yo"]]
-  ) +
-  plot_layout(guides = "collect") +
-  plot_annotation(
-    theme = theme(
-      plot.margin = margin(15, 15, 15, 15)
-    )
-  ) &
+  common_theme +
+  
   theme(
     legend.position = "bottom",
+    legend.direction = "horizontal",
+    legend.justification = "center",
     
+    legend.background = element_blank(),
     legend.box.background = element_rect(
-      colour = "grey35",
+      colour = "black",
       fill = NA,
-      linewidth = 0.7
+      linewidth = 0.35
     ),
     
-    legend.box.margin = margin(
-      t = 8,
-      r = 10,
-      b = 8,
-      l = 10
-    ),
-    
-    legend.title = element_text(size = 12),
-    legend.text = element_text(size = 11),
-    legend.key.width = grid::unit(4, "cm")
+    axis.text.x = element_text(
+      # size = 10,
+      angle = 30,
+      hjust = 1
+    )
+  )  
+
+ggsave(file.path(output_path, paste("seasonality_beta0_x_beta1_sensitivity_of_infections_central_scenario.png", sep = "")), fig_beta_x_beta_seasonality_sensitivity, height = 5.0, width = 7.33, dpi = 300)
+
+################################################################################
+# STOCHASTICITY FIGURES
+################################################################################
+
+#########################################################################
+# SELECTED PARTICLES - DAILY INFECTION INCIDENCE - AGE STRATIFIED
+#########################################################################
+
+scenario_levels <- c("Status_quo", "Central_cover60_LAIV_5-18yo", "Optimistic_cover60_LAIV_5-18yo")
+
+source_file_daily_inf <- file.path(ROOT, paste("R outputs", source_file_type, vaccination_term), "dat_uom_infection_with_waning") 
+ds_daily_inf <- open_dataset(source_file_daily_inf)
+
+df_daily_inf_selected_parts <- ds_daily_inf %>%
+  filter(
+    scenario %in% c("Status_quo", "Central_cover60_LAIV_5-18yo", "Optimistic_cover60_LAIV_5-18yo"),
+    simulation_index %in% c(0, 7)
+  ) %>%
+  select(c(scenario, simulation_index, age_group, horizon, run_nr, value)) %>%
+  collect() %>%
+  mutate(
+    age_group = factor(age_group, levels = age_levels_no_all),
+    scenario = factor(scenario, levels = scenario_levels)
   )
 
-fig_timing
-
-ggsave(file.path(output_path, paste("Diagonal_peak_plot_all_cover60.png", sep = "")), height = 11, width = 11, dpi = 300)
-
-
-################################################################################
-# Older versions of figures that may still be useful
-################################################################################
-# Figure 4 with A and B vertically stacked
-
-combined_figure_vertical <- patchwork::wrap_plots(
-  patchwork::wrap_elements(full = fig_worst),
-  patchwork::wrap_elements(full = fig_timing),
-  ncol = 1,
-  heights = c(1, 0.9)
+fig_daily_inf_age_strat <- ggplot(
+  df_daily_inf_selected_parts,
+  aes(
+    x = horizon,
+    y = value,
+    colour = factor(simulation_index),
+    group = interaction(simulation_index, run_nr)
+  )
 ) +
-  patchwork::plot_annotation(
-    theme = theme(
-      plot.margin = margin(
-        t = 5,
-        r = 5,
-        b = 5,
-        l = 5
+  
+  geom_line(
+    alpha = 0.2,
+    linewidth = 0.3
+  ) +
+  
+  facet_grid(
+    rows = vars(age_group),
+    cols = vars(scenario),
+    scales = "free_y",
+    labeller = labeller(
+      scenario = c(
+        "Status_quo" = "Baseline",
+        "Central_cover60_LAIV_5-18yo" = "Central 5–18",
+        "Optimistic_cover60_LAIV_5-18yo" = "Optimistic 5–18"
+      ),
+      age_group = c(
+        "<1" = "<1",
+        "1-4" = "1–<5",
+        "5-11" = "5–<12",
+        "12-17" = "12–<18",
+        "18-64" = "18–<65",
+        "65-79" = "65–<80",
+        "80+" = "80+"
+      )
+    )
+  ) +
+  
+  scale_x_continuous(
+    breaks = c(0, 150, 300)
+  ) +
+  
+  scale_colour_manual(
+    values = c(
+      "0" = "#1B9E77",
+      "7" = "#D95F02"
+    )
+  ) +
+  
+  labs(
+    x = "Day",
+    y = "Daily infection incidence",
+    # colour = NULL
+  ) +
+  
+  common_theme +
+  
+  theme(
+    # No x-axis labels or ticks
+    # axis.text.x = element_blank(),
+    # axis.ticks.x = element_blank(),
+    
+    # Slightly tighter spacing because there are seven panels
+    panel.spacing = unit(0.15, "cm"),
+    
+    legend.position = "none"
+  )
+
+ggsave(
+  filename = file.path(
+    output_path,
+    "selected_parts_stochasticity_age_stratified.png"
+  ),
+  plot = fig_daily_inf_age_strat,
+  height = 8.9,
+  width = 7.33,
+  units = "in",
+  device = "png",
+  dpi = 300
+)
+
+
+#########################################################################
+# SELECTED PARTICLES - DAILY INFECTION INCIDENCE - AGE AGGREGATED
+#########################################################################
+
+source_file_daily_inf <- file.path(ROOT, paste("R outputs", source_file_type, vaccination_term), "dat_uom_infection_with_waning") 
+ds_daily_inf <- open_dataset(source_file_daily_inf)
+
+df_daily_inf_selected_parts <- ds_daily_inf %>%
+  filter(
+    simulation_index %in% c(0, 7, 56, 367)
+  ) %>%
+  select(scenario, simulation_index, age_group, horizon, run_nr, value) %>%
+  group_by(scenario, simulation_index, horizon, run_nr) %>%
+  summarise(value = sum(value), .groups = "drop") %>%
+  collect() %>%
+  left_join(lookup_table, by = "scenario")
+
+df_baseline <- df_daily_inf_selected_parts %>%
+  filter(scenario == "Status_quo")
+
+df_intervention <- df_daily_inf_selected_parts %>%
+  filter(scenario != "Status_quo") %>%
+  mutate(
+    row_label = paste(
+      scen_effect,
+      ifelse(
+        scen_age == "LAIV in 5-12 year olds",
+        "5–12",
+        "5–18"
+      ),
+      sep = "\n"
+    ),
+    row_label = factor(
+      row_label,
+      levels = c(
+        "Pessimistic\n5–12",
+        "Pessimistic\n5–18",
+        "Central\n5–12",
+        "Central\n5–18",
+        "Optimistic\n5–12",
+        "Optimistic\n5–18"
       )
     )
   )
 
-# combined_figure_vertical
-
-ggsave(file.path(output_path, paste("combined_vertical.png", sep = "")),  plot = combined_figure_vertical, height = 17, width = 12, dpi = 300)
-
-
-############
-
-################################################################################
-## Percentage reduction in hospitalisations by source
-## 60% LAIV coverage only
-################################################################################
-
-# Combine the three sources into one dataframe
-df_adm_sources_per <- bind_rows(
-  df_adm_all %>%
-    mutate(source = "AIHW"),
-  
-  df_adm_best_flucan_all %>%
-    mutate(source = "FluCAN - best"),
-  
-  df_adm_worst_flucan_all %>%
-    mutate(source = "FluCAN - worst")
-) %>%
-  filter(
-    scen_age %in% c(
-      "LAIV in 5-12 year olds",
-      "LAIV in 5-18 year olds"
-    ),
-    scen_coverage == "60%"
-  )
-
-
-# Calculate summary statistics
-df_adm_sources_per_summary <- df_adm_sources_per %>%
-  group_by(scen_age, scen_effect, source) %>%
-  summarise(
-    median_per = median(outcome_per),
-    lwr50_per = quantile(outcome_per, 0.25),
-    upr50_per = quantile(outcome_per, 0.75),
-    .groups = "drop"
-  )
-
-
-# Produce figure
-fig_aggregated_admissions_per <- ggplot(
-  df_adm_sources_per,
+fig_intervention <- ggplot(
+  df_intervention,
   aes(
-    x = scen_effect,
-    y = outcome_per,
-    color = source
+    x = horizon,
+    y = value,
+    colour = factor(simulation_index),
+    group = interaction(simulation_index, run_nr)
   )
 ) +
   
+  geom_line(
+    alpha = 0.2,
+    linewidth = 0.3
+  ) +
+  
+  facet_grid(
+    rows = vars(row_label),
+    cols = vars(scen_coverage)
+    ) +
+
+  scale_x_continuous(
+    breaks = c(0, 150, 300)
+  ) +
+  
+  scale_y_continuous(
+    labels = function(x) x / 1e3,
+    breaks = c(0, 5000, 10000)
+  ) +
+  
+  scale_colour_manual(
+    values = c(
+      "0" = "#1B9E77",
+      "7" = "#D95F02",
+      "56" = "#7570B3",
+      "367" = "#E7298A"
+    )
+  ) +
+  
+  labs(
+    x = "Day",
+    y = "Daily infection incidence ('000s)"
+  ) +
+  
+  common_theme +
+  
+  theme(
+    panel.spacing = unit(0.15, "cm"),
+    legend.position = "none"
+    )
+  # )
+
+fig_baseline <- ggplot(
+  df_baseline,
+  aes(
+    x = horizon,
+    y = value,
+    colour = factor(simulation_index),
+    group = interaction(simulation_index, run_nr)
+  )
+) +
+  
+  geom_line(
+    alpha = 0.2,
+    linewidth = 0.3
+  ) +
+  
+  scale_x_continuous(
+    breaks = c(0, 150, 300)
+  ) +
+  
+  scale_y_continuous(
+    breaks = c(0, 5000, 10000),
+    labels = function(x) x / 1e3
+  ) +
+  
+  scale_colour_manual(
+    values = c(
+      "0" = "#1B9E77",
+      "7" = "#D95F02",
+      "56" = "#7570B3",
+      "367" = "#E7298A"
+    )
+  ) +
+  
+  labs(
+    title = "Baseline",
+    x = NULL,
+    y = NULL
+  ) +
+  
+  common_theme +
+  
+  theme(
+    legend.position = "none",
+    plot.title = element_text(
+      hjust = 0.5,
+      face = "bold"
+    )
+  )
+
+baseline_row <-
+  plot_spacer() +
+  fig_baseline +
+  plot_spacer() +
+  plot_layout(
+    ncol = 3,
+    widths = c(1.5, 1, 1.5)
+  )
+
+fig_daily_inf_all_scenarios <-
+  baseline_row /
+  fig_intervention +
+  plot_layout(
+    heights = c(1, 6)
+  )
+
+ggsave(
+  filename = file.path(
+    output_path,
+    "daily_infections_all_scenarios.png"
+  ),
+  plot = fig_daily_inf_all_scenarios,
+  width = 7.33,
+  height = 8.9,
+  units = "in",
+  device = "png",
+  dpi = 300
+)
+
+
+#########################################################################
+# SELECTED PARTICLES - YEARLY ATTACK RATE PER SCENARIO - AGE STRATIFIED
+#########################################################################
+
+scenario_levels <- c(
+  "Status_quo", 
+  
+  "Pessimistic_cover20_LAIV_5-12yo",
+  "Pessimistic_cover40_LAIV_5-12yo", 
+  "Pessimistic_cover60_LAIV_5-12yo", 
+  "Pessimistic_cover80_LAIV_5-12yo",
+  "Pessimistic_cover20_LAIV_5-18yo",
+  "Pessimistic_cover40_LAIV_5-18yo", 
+  "Pessimistic_cover60_LAIV_5-18yo", 
+  "Pessimistic_cover80_LAIV_5-18yo", 
+  
+  "Central_cover20_LAIV_5-12yo",
+  "Central_cover40_LAIV_5-12yo", 
+  "Central_cover60_LAIV_5-12yo", 
+  "Central_cover80_LAIV_5-12yo",
+  "Central_cover20_LAIV_5-18yo",
+  "Central_cover40_LAIV_5-18yo", 
+  "Central_cover60_LAIV_5-18yo", 
+  "Central_cover80_LAIV_5-18yo", 
+  
+  "Optimistic_cover20_LAIV_5-12yo",
+  "Optimistic_cover40_LAIV_5-12yo", 
+  "Optimistic_cover60_LAIV_5-12yo", 
+  "Optimistic_cover80_LAIV_5-12yo",
+  "Optimistic_cover20_LAIV_5-18yo",
+  "Optimistic_cover40_LAIV_5-18yo", 
+  "Optimistic_cover60_LAIV_5-18yo", 
+  "Optimistic_cover80_LAIV_5-18yo"
+)
+
+df_ar_selected_parts_age_strat <- df_inf %>%
+  filter(
+    simulation_index %in% c(0, 7, 56, 367),
+    age_group != "All"
+  ) %>%
+  mutate(
+    scenario = factor(scenario, levels = scenario_levels)
+  )
+
+fig_inf_selected_parts_age_strat <- ggplot(
+  df_ar_selected_parts_age_strat,
+  aes(
+    x = scenario,
+    y = value,
+    colour = factor(simulation_index),
+    group = interaction(simulation_index, run_nr)
+  )
+) +
+  
+  geom_line(
+    alpha = 0.2,
+    linewidth = 0.3
+  ) +
+  geom_point(
+    alpha = 0.2,
+    size = 1.0,
+    shape = 16
+  ) +
+  
+  facet_grid(
+    rows = vars(age_group),
+    scales = "free_y",
+    labeller = labeller(
+      age_group = c(
+        "<1" = "<1",
+        "1-4" = "1–<5",
+        "5-11" = "5–<12",
+        "12-17" = "12–<18",
+        "18-64" = "18–<65",
+        "65-79" = "65–<80",
+        "80+" = "80+"
+      )
+    )
+  ) +
+  
+  scale_colour_manual(
+    values = c(
+      "0" = "#1B9E77",
+      "7" = "#D95F02",
+      "56" = "#7570B3",
+      "367" = "#E7298A"
+    )
+  ) +
+  
+  labs(
+    x = "Scenario",
+    y = "Infection attack rate"
+  ) +
+  
+  common_theme +
+  
+  theme(
+    # No x-axis labels or ticks
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank(),
+    
+    # Slightly tighter spacing because there are seven panels
+    panel.spacing = unit(0.15, "cm"),
+    
+    legend.position = "none"
+  )
+  
+  # scale_x_discrete(
+  #   labels = c(
+  #     "Status_quo" = "Baseline",
+  #     
+  #     "Pessimistic_cover20_LAIV_5-12yo" = "Pessimistic\n5–12, 20%",
+  #     "Pessimistic_cover40_LAIV_5-12yo" = "Pessimistic\n5–12, 40%",
+  #     "Pessimistic_cover60_LAIV_5-12yo" = "Pessimistic\n5–12, 60%",
+  #     "Pessimistic_cover80_LAIV_5-12yo" = "Pessimistic\n5–12, 80%",
+  #     "Pessimistic_cover20_LAIV_5-18yo" = "Pessimistic\n5–18, 20%",
+  #     "Pessimistic_cover40_LAIV_5-18yo" = "Pessimistic\n5–18, 40%",
+  #     "Pessimistic_cover60_LAIV_5-18yo" = "Pessimistic\n5–18, 60%",
+  #     "Pessimistic_cover80_LAIV_5-18yo" = "Pessimistic\n5–18, 80%",
+  #     
+  #     "Central_cover20_LAIV_5-12yo" = "Central\n5–12, 20%",
+  #     "Central_cover40_LAIV_5-12yo" = "Central\n5–12, 40%",
+  #     "Central_cover60_LAIV_5-12yo" = "Central\n5–12, 60%",
+  #     "Central_cover80_LAIV_5-12yo" = "Central\n5–12, 80%",
+  #     "Central_cover20_LAIV_5-18yo" = "Central\n5–18, 20%",
+  #     "Central_cover40_LAIV_5-18yo" = "Central\n5–18, 40%",
+  #     "Central_cover60_LAIV_5-18yo" = "Central\n5–18, 60%",
+  #     "Central_cover80_LAIV_5-18yo" = "Central\n5–18, 80%",
+  #     
+  #     "Optimistic_cover20_LAIV_5-12yo" = "Optimistic\n5–12, 20%",
+  #     "Optimistic_cover40_LAIV_5-12yo" = "Optimistic\n5–12, 40%",
+  #     "Optimistic_cover60_LAIV_5-12yo" = "Optimistic\n5–12, 60%",
+  #     "Optimistic_cover80_LAIV_5-12yo" = "Optimistic\n5–12, 80%",
+  #     "Optimistic_cover20_LAIV_5-18yo" = "Optimistic\n5–18, 20%",
+  #     "Optimistic_cover40_LAIV_5-18yo" = "Optimistic\n5–18, 40%",
+  #     "Optimistic_cover60_LAIV_5-18yo" = "Optimistic\n5–18, 60%",
+  #     "Optimistic_cover80_LAIV_5-18yo" = "Optimistic\n5–18, 80%"
+  #   )
+  # ) +
+
+ggsave(
+  filename = file.path(
+    output_path,
+    "selected_parts_stochasticity_ar_per_scenario_age_strat.png"
+  ),
+  plot = fig_inf_selected_parts_age_strat,
+  height = 8.9,
+  width = 7.33,
+  units = "in",
+  device = "png",
+  dpi = 300
+)
+
+#########################################################################
+# SELECTED PARTICLES - YEARLY ATTACK RATE PER SCENARIO - AGE AGGREGATED
+#########################################################################
+
+scenario_levels <- c(
+  "Status_quo", 
+  
+  "Pessimistic_cover20_LAIV_5-12yo",
+  "Pessimistic_cover40_LAIV_5-12yo", 
+  "Pessimistic_cover60_LAIV_5-12yo", 
+  "Pessimistic_cover80_LAIV_5-12yo",
+  "Pessimistic_cover20_LAIV_5-18yo",
+  "Pessimistic_cover40_LAIV_5-18yo", 
+  "Pessimistic_cover60_LAIV_5-18yo", 
+  "Pessimistic_cover80_LAIV_5-18yo", 
+  
+  "Central_cover20_LAIV_5-12yo",
+  "Central_cover40_LAIV_5-12yo", 
+  "Central_cover60_LAIV_5-12yo", 
+  "Central_cover80_LAIV_5-12yo",
+  "Central_cover20_LAIV_5-18yo",
+  "Central_cover40_LAIV_5-18yo", 
+  "Central_cover60_LAIV_5-18yo", 
+  "Central_cover80_LAIV_5-18yo", 
+  
+  "Optimistic_cover20_LAIV_5-12yo",
+  "Optimistic_cover40_LAIV_5-12yo", 
+  "Optimistic_cover60_LAIV_5-12yo", 
+  "Optimistic_cover80_LAIV_5-12yo",
+  "Optimistic_cover20_LAIV_5-18yo",
+  "Optimistic_cover40_LAIV_5-18yo", 
+  "Optimistic_cover60_LAIV_5-18yo", 
+  "Optimistic_cover80_LAIV_5-18yo"
+)
+
+df_ar_selected_parts <- df_inf %>%
+  filter(
+    simulation_index %in% c(0, 7, 56, 367),
+    age_group == "All"
+  ) %>%
+  mutate(
+    scenario = factor(scenario, levels = scenario_levels)
+  )
+
+fig_inf_selected_parts <- ggplot(
+  df_ar_selected_parts,
+  aes(
+    x = scenario,
+    y = value,
+    colour = factor(simulation_index),
+    group = interaction(simulation_index, run_nr)
+  )
+) +
+  
+  scale_y_continuous(
+    expand = expansion(mult=c(0.02, 0.01)),
+    labels = function(x) x / 1e5
+  )+
+  
+  geom_line(
+    alpha = 0.2,
+    linewidth = 0.3
+  ) +
+  geom_point(
+    alpha = 0.2,
+    size = 1.0,
+    shape = 16
+  ) +
+  scale_colour_manual(
+    values = c(
+      "0" = "#1B9E77",
+      "7" = "#D95F02",
+      "56" = "#7570B3",
+      "367" = "#E7298A"
+    )
+  ) +
+  labs(
+    x = "Scenario",
+    y = "Infection attack rate ('00000s)"
+  ) +
+  # scale_x_discrete(
+  #   labels = c(
+  #     "Status_quo" = "Baseline",
+  #     
+  #     "Pessimistic_cover20_LAIV_5-12yo" = "Pessimistic\n5–12, 20%",
+  #     "Pessimistic_cover40_LAIV_5-12yo" = "Pessimistic\n5–12, 40%",
+  #     "Pessimistic_cover60_LAIV_5-12yo" = "Pessimistic\n5–12, 60%",
+  #     "Pessimistic_cover80_LAIV_5-12yo" = "Pessimistic\n5–12, 80%",
+  #     "Pessimistic_cover20_LAIV_5-18yo" = "Pessimistic\n5–18, 20%",
+  #     "Pessimistic_cover40_LAIV_5-18yo" = "Pessimistic\n5–18, 40%",
+  #     "Pessimistic_cover60_LAIV_5-18yo" = "Pessimistic\n5–18, 60%",
+  #     "Pessimistic_cover80_LAIV_5-18yo" = "Pessimistic\n5–18, 80%",
+  #     
+  #     "Central_cover20_LAIV_5-12yo" = "Central\n5–12, 20%",
+  #     "Central_cover40_LAIV_5-12yo" = "Central\n5–12, 40%",
+  #     "Central_cover60_LAIV_5-12yo" = "Central\n5–12, 60%",
+  #     "Central_cover80_LAIV_5-12yo" = "Central\n5–12, 80%",
+  #     "Central_cover20_LAIV_5-18yo" = "Central\n5–18, 20%",
+  #     "Central_cover40_LAIV_5-18yo" = "Central\n5–18, 40%",
+  #     "Central_cover60_LAIV_5-18yo" = "Central\n5–18, 60%",
+  #     "Central_cover80_LAIV_5-18yo" = "Central\n5–18, 80%",
+  #     
+  #     "Optimistic_cover20_LAIV_5-12yo" = "Optimistic\n5–12, 20%",
+  #     "Optimistic_cover40_LAIV_5-12yo" = "Optimistic\n5–12, 40%",
+  #     "Optimistic_cover60_LAIV_5-12yo" = "Optimistic\n5–12, 60%",
+  #     "Optimistic_cover80_LAIV_5-12yo" = "Optimistic\n5–12, 80%",
+  #     "Optimistic_cover20_LAIV_5-18yo" = "Optimistic\n5–18, 20%",
+  #     "Optimistic_cover40_LAIV_5-18yo" = "Optimistic\n5–18, 40%",
+  #     "Optimistic_cover60_LAIV_5-18yo" = "Optimistic\n5–18, 60%",
+  #     "Optimistic_cover80_LAIV_5-18yo" = "Optimistic\n5–18, 80%"
+  #   )
+  # ) +
+  
+  common_theme +
+  
+  theme(
+    # No x-axis labels or ticks
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank(),
+    
+    # Slightly tighter spacing because there are seven panels
+    panel.spacing = unit(0.15, "cm"),
+    
+    legend.position = "none"
+  )
+  
+  # theme_bw() +
+  # theme(
+  #   axis.text.x = element_text(
+  #     size = 7,
+  #     angle = 30,
+  #     hjust = 1,
+  #     vjust = 1
+  #   ),
+  #   axis.text.y = element_text(size = 7),
+  #   axis.title.y = element_text(size = 9),
+  #   panel.grid.minor = element_blank(),
+  #   legend.position = "none"
+  # )
+
+ggsave(
+  filename = file.path(
+    output_path,
+    "selected_parts_stochastic_ar_per_scenario.png"
+  ),
+  plot = fig_inf_selected_parts,
+  width = 7.33,
+  height = 4.0,
+  units = "in",
+  device = "png",
+  dpi = 300
+)
+
+################################################################################
+# END STOCHASTICITY FIGURES
+################################################################################
+
+#########################################################################
+# FIGURE - RANKING SCENARIOS BASED ON INFECTION REDUCTION
+#########################################################################
+
+scenario_levels <- c(
+  "Pessimistic_cover20_LAIV_5-12yo",
+  "Pessimistic_cover40_LAIV_5-12yo", 
+  "Pessimistic_cover60_LAIV_5-12yo", 
+  "Pessimistic_cover80_LAIV_5-12yo",
+  "Pessimistic_cover20_LAIV_5-18yo",
+  "Pessimistic_cover40_LAIV_5-18yo", 
+  "Pessimistic_cover60_LAIV_5-18yo", 
+  "Pessimistic_cover80_LAIV_5-18yo", 
+  
+  "Central_cover20_LAIV_5-12yo",
+  "Central_cover40_LAIV_5-12yo", 
+  "Central_cover60_LAIV_5-12yo", 
+  "Central_cover80_LAIV_5-12yo",
+  "Central_cover20_LAIV_5-18yo",
+  "Central_cover40_LAIV_5-18yo", 
+  "Central_cover60_LAIV_5-18yo", 
+  "Central_cover80_LAIV_5-18yo", 
+  
+  "Optimistic_cover20_LAIV_5-12yo",
+  "Optimistic_cover40_LAIV_5-12yo", 
+  "Optimistic_cover60_LAIV_5-12yo", 
+  "Optimistic_cover80_LAIV_5-12yo",
+  "Optimistic_cover20_LAIV_5-18yo",
+  "Optimistic_cover40_LAIV_5-18yo", 
+  "Optimistic_cover60_LAIV_5-18yo", 
+  "Optimistic_cover80_LAIV_5-18yo"
+)
+
+df_ar_all_parts <- df_inf %>%
+  filter(
+    age_group == "All"
+  )
+
+df_mean_ar <- df_ar_all_parts %>%
+  group_by(
+    scenario,
+    simulation_index
+  ) %>%
+  summarise(
+    mean_attack_rate = mean(value),
+    .groups = "drop"
+  )
+
+df_baseline_ar <- df_mean_ar %>%
+  filter(
+    scenario == "Status_quo"
+  ) %>%
+  select(
+    simulation_index,
+    baseline_attack_rate = mean_attack_rate
+  )
+
+df_rank <- df_mean_ar %>%
+  filter(
+    scenario != "Status_quo"
+  ) %>%
+  left_join(
+    df_baseline_ar,
+    by = "simulation_index"
+  ) %>%
+  mutate(
+    mean_ar_reduction =
+      (baseline_attack_rate - mean_attack_rate) /
+      baseline_attack_rate,
+    
+    scenario = factor(
+      scenario,
+      levels = scenario_levels
+    )
+  ) %>%
+  group_by(
+    scenario
+  ) %>%
+  mutate(
+    rank = rank(
+      -mean_ar_reduction,
+      ties.method = "average"
+    )
+  ) %>%
+  ungroup()
+
+particle_order <- df_rank %>%
+  filter(
+    scenario == "Central_cover60_LAIV_5-18yo"
+  ) %>%
+  arrange(
+    rank
+  ) %>%
+  pull(
+    simulation_index
+  )
+
+df_rank <- df_rank %>%
+  mutate(
+    simulation_index = factor(
+      simulation_index,
+      levels = rev(particle_order)
+    )
+  )
+
+fig_rank <- ggplot(
+  df_rank,
+  aes(
+    x = scenario,
+    y = simulation_index,
+    fill = rank
+  )
+) +
+  geom_tile() +
+  
+  scale_fill_distiller(
+    palette = "RdYlBu",
+    direction = -1
+  ) +
+  
+  scale_x_discrete(
+    labels = c(
+      "Pessimistic_cover20_LAIV_5-12yo" = "Pessimistic\n5–12, 20%",
+      "Pessimistic_cover40_LAIV_5-12yo" = "Pessimistic\n5–12, 40%",
+      "Pessimistic_cover60_LAIV_5-12yo" = "Pessimistic\n5–12, 60%",
+      "Pessimistic_cover80_LAIV_5-12yo" = "Pessimistic\n5–12, 80%",
+      
+      "Pessimistic_cover20_LAIV_5-18yo" = "Pessimistic\n5–18, 20%",
+      "Pessimistic_cover40_LAIV_5-18yo" = "Pessimistic\n5–18, 40%",
+      "Pessimistic_cover60_LAIV_5-18yo" = "Pessimistic\n5–18, 60%",
+      "Pessimistic_cover80_LAIV_5-18yo" = "Pessimistic\n5–18, 80%",
+      
+      "Central_cover20_LAIV_5-12yo" = "Central\n5–12, 20%",
+      "Central_cover40_LAIV_5-12yo" = "Central\n5–12, 40%",
+      "Central_cover60_LAIV_5-12yo" = "Central\n5–12, 60%",
+      "Central_cover80_LAIV_5-12yo" = "Central\n5–12, 80%",
+      
+      "Central_cover20_LAIV_5-18yo" = "Central\n5–18, 20%",
+      "Central_cover40_LAIV_5-18yo" = "Central\n5–18, 40%",
+      "Central_cover60_LAIV_5-18yo" = "Central\n5–18, 60%",
+      "Central_cover80_LAIV_5-18yo" = "Central\n5–18, 80%",
+      
+      "Optimistic_cover20_LAIV_5-12yo" = "Optimistic\n5–12, 20%",
+      "Optimistic_cover40_LAIV_5-12yo" = "Optimistic\n5–12, 40%",
+      "Optimistic_cover60_LAIV_5-12yo" = "Optimistic\n5–12, 60%",
+      "Optimistic_cover80_LAIV_5-12yo" = "Optimistic\n5–12, 80%",
+      
+      "Optimistic_cover20_LAIV_5-18yo" = "Optimistic\n5–18, 20%",
+      "Optimistic_cover40_LAIV_5-18yo" = "Optimistic\n5–18, 40%",
+      "Optimistic_cover60_LAIV_5-18yo" = "Optimistic\n5–18, 60%",
+      "Optimistic_cover80_LAIV_5-18yo" = "Optimistic\n5–18, 80%"
+    )
+  ) +
+  
+  labs(
+    x = "Scenario",
+    y = "Particle",
+    # fill = "Rank"
+  ) +
+  
+  common_theme +
+  
+  theme(
+    # No x and y -axes labels or ticks
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank(),
+    
+    axis.text.y = element_blank(),
+    axis.ticks.y = element_blank(),
+    
+    # # Slightly tighter spacing because there are seven panels
+    # panel.spacing = unit(0.15, "cm"),
+    
+    legend.position = "none"
+  )
+
+ggsave(
+  filename = file.path(
+    output_path,
+    "particle_rankings_ar_reduction_all_scenarios.png"
+  ),
+  plot = fig_rank,
+  width = 7.33,
+  height = 8.9,
+  units = "in",
+  device = "png",
+  dpi = 300
+)
+
+################################################################################
+# END RANKING SCENARIOS FIGURE
+################################################################################
+
+###############################################################################
+# COMPARISON OF PEAK TIMING BETWEEN BASELINE, TERM 1 VACCINATION
+# AND TERM 2 VACCINATION
+###############################################################################
+
+source_file_daily_inf_term1 <- file.path(ROOT, paste("R outputs", source_file_type, "term1 vaccination"), "dat_uom_infection_with_waning")
+source_file_daily_inf_term2 <- file.path(ROOT, paste("R outputs", source_file_type, "term2 vaccination"), "dat_uom_infection_with_waning") 
+
+ds_daily_inf_term1 <- open_dataset(source_file_daily_inf_term1)
+ds_daily_inf_term2 <- open_dataset(source_file_daily_inf_term2)
+
+df_daily_inf_filtered_sims_term1 <- ds_daily_inf_term1 %>%
+  filter(
+    scenario %in% c("Status_quo", "Central_cover60_LAIV_5-18yo"),
+  ) %>%
+  select(c(scenario, simulation_index, run_nr, age_group, horizon, value)) %>%
+  group_by(scenario, simulation_index, run_nr, horizon) %>%
+  summarise(value = sum(value), .groups = "drop") %>%
+  collect() %>%
+  group_by(scenario, simulation_index, run_nr) %>%
+  slice_max(order_by = value, n = 1, with_ties = FALSE) %>%
+  ungroup() %>%
+  rename(peak_day = horizon) %>%
+  mutate(
+    type = case_when(
+      scenario == "Central_cover60_LAIV_5-18yo"  ~ "term1",
+      scenario == "Status_quo"  ~ "Baseline"
+    )
+  ) %>%
+  select(type, peak_day)
+  
+df_daily_inf_filtered_sims_term2 <- ds_daily_inf_term2 %>%
+  filter(
+    scenario %in% c("Central_cover60_LAIV_5-18yo"),
+  ) %>%
+  select(c(scenario, simulation_index, run_nr, age_group, horizon, value)) %>%
+  group_by(scenario, simulation_index, run_nr, horizon) %>%
+  summarise(value = sum(value), .groups = "drop") %>%
+  collect() %>%
+  group_by(scenario, simulation_index, run_nr) %>%
+  slice_max(order_by = value, n = 1, with_ties = FALSE) %>%
+  ungroup() %>%
+  rename(
+    peak_day = horizon
+    ) %>%
+  mutate(type = "term2") %>%
+  select(type, peak_day)
+
+df_daily_inf_filtered_sims <- rbind(df_daily_inf_filtered_sims_term1, df_daily_inf_filtered_sims_term2)
+
+df_daily_inf_filtered_summary <- df_daily_inf_filtered_sims %>%
+  group_by(type) %>%
+  summarise(
+    median_tot = median(peak_day),
+    upr95_tot = quantile(peak_day, 0.975),
+    lwr95_tot = quantile(peak_day, 0.025),
+    upr50_tot = quantile(peak_day, 0.75),
+    lwr50_tot = quantile(peak_day, 0.25),
+    .groups = "drop"
+  )
+
+fig_peak_per_term_vacc <- ggplot(
+  df_daily_inf_filtered_sims,
+  aes(
+    x = type,
+    y = peak_day,
+    color = type
+  )
+) +
+  
+  # Individual model particles
   geom_point(
     position = position_jitterdodge(
       jitter.width = 0.35,
       jitter.height = 0,
       dodge.width = 0.75
     ),
-    alpha = 0.15,
-    size = 0.8,
+    alpha = 0.2,
+    size = 1.0,
     shape = 16
   ) +
   
   geom_pointrange(
-    data = df_adm_sources_per_summary,
+    data = df_daily_inf_filtered_summary ,
     aes(
-      x = scen_effect,
-      y = median_per,
-      ymin = lwr50_per,
-      ymax = upr50_per,
-      group = source
+      x = type,
+      y = median_tot,
+      ymin = lwr50_tot,
+      ymax = upr50_tot,
+      group = type
     ),
     position = position_dodge(width = 0.75),
     inherit.aes = FALSE,
@@ -2610,33 +3485,30 @@ fig_aggregated_admissions_per <- ggplot(
     fatten = 2
   ) +
   
-  facet_wrap(
-    ~scen_age,
-    ncol = 1,
-    labeller = as_labeller(c(
-      "LAIV in 5-12 year olds" = "LAIV 5 to <12 years",
-      "LAIV in 5-18 year olds" = "LAIV 5 to <18 years"
-    ))
-  ) +
-  
   scale_color_brewer(
-    "Hospitalisation\ndata source",
+    "Vaccination term",
     palette = "Dark2",
+    # labels = c(
+    #   "AIHW" = "Baseline (AIHW)",
+    #   "FluCAN - high" = "High (FluCAN adjusted)",
+    #   "FluCAN - low" = "Low (FluCAN adjusted)"
+    # ),
     guide = guide_legend(
+      direction = "horizontal",
+      title.position = "top",
+      title.hjust = 0.5,
       override.aes = list(alpha = 1, size = 2)
     )
   ) +
   
   scale_y_continuous(
-    limits = c(NA, 1),
-    expand = expansion(mult = c(0.02, 0.01)),
-    breaks = seq(-0.2, 1, by = 0.2),
-    labels = scales::label_percent(accuracy = 1)
+    expand = expansion(mult=c(0.02, 0.01)),
+    labels = scales::label_comma()
   ) +
   
   labs(
-    x = "LAIV effectiveness",
-    y = "Reduction in hospitalisations"
+    x = "Vaccination term",
+    y = "Peak day of infection incidence"
   ) +
   
   geom_hline(
@@ -2646,54 +3518,685 @@ fig_aggregated_admissions_per <- ggplot(
     colour = "black"
   ) +
   
-  theme_bw(base_size = 10) +
-  
+  common_theme +
   theme(
-    axis.title = element_text(size = 11),
-    axis.text = element_text(size = 10),
-    
-    strip.text = element_text(
-      size = 11,
-      face = "bold",
-      margin = margin(t = 4, r = 4, b = 4, l = 4)
-    ),
-    strip.background = element_rect(
-      colour = "black",
-      fill = "white",
-      linewidth = 0.5
-    ),
-    
-    legend.position = "right",
-    legend.direction = "vertical",
-    legend.title = element_text(size = 10),
-    legend.text = element_text(size = 10),
+    legend.position = "bottom",
+    legend.direction = "horizontal",
+    legend.justification = "center",
     legend.background = element_blank(),
-    legend.box.background = element_blank(),
-    
-    panel.grid.minor = element_blank(),
-    panel.grid.major.x = element_blank(),
-    
-    panel.spacing = unit(0.35, "cm"),
-    
-    plot.margin = margin(
-      t = 4,
-      r = 4,
-      b = 4,
-      l = 4
+    legend.box.background = element_rect(
+      colour = "black",
+      fill = NA,
+      linewidth = 0.35
     )
-  )
-
+  ) 
 
 ggsave(
   filename = file.path(
     output_path,
-    "hospitalisations_reduction_percentage_by_source_60coverage.png"
+    "peak_day_per_vacc_term.png"
   ),
-  plot = fig_aggregated_admissions_per,
-  height = 7.2,
-  width = 6.3,
+  plot = fig_peak_per_term_vacc,
+  width = 7.33,
+  height = 5.0,
   units = "in",
   device = "png",
   dpi = 300
 )
+
+################################################################################
+# END EFFECT OF VACCINATION TIMING ON EPIDEMIC
+################################################################################
+
+# ################################################################################
+# FIGURE AGE FACETTED CORRELATION PLOT OF PEAK DAYS OF INFECTION INCIDENCE
+# ################################################################################ 
+ 
+source_file_daily_inf <- file.path(ROOT, paste("R outputs", source_file_type, vaccination_term), "dat_uom_infection_with_waning")
+ds_daily_inf <- open_dataset(source_file_daily_inf)
+
+df_baseline_only <- ds_daily_inf %>%
+  filter(scenario == "Status_quo") %>%
+  select(simulation_index, run_nr, age_group, horizon, value) %>%
+  collect() %>%
+  group_by(simulation_index, run_nr, age_group) %>%
+  slice_max(order_by = value, n = 1, with_ties = FALSE) %>%
+  ungroup() %>%
+  select(-value)
+
+df_baseline_only$age_group <- factor(df_baseline_only$age_group, levels = age_levels_no_all, ordered = TRUE)
+
+df_pairs <- df_baseline_only %>%
+  select(
+    simulation_index,
+    run_nr,
+    age_x = age_group,
+    peak_x = horizon
+  ) %>%
+  inner_join(
+    df_baseline_only %>%
+      select(
+        simulation_index,
+        run_nr,
+        age_y = age_group,
+        peak_y = horizon
+      ),
+    by = c("simulation_index", "run_nr"),
+    relationship = "many-to-many"
+  ) %>%
+  filter(age_y > age_x)
+
+# fig_peak_pairs <- ggplot(
+#   df_pairs,
+#   aes(
+#     x = peak_x,
+#     y = peak_y
+#   )
+# ) +
+#   
+#   geom_abline(
+#     data = df_pairs %>% distinct(age_x, age_y),
+#     aes(intercept = 0, slope = 1),
+#     linewidth = 0.3,
+#     linetype = "dashed",
+#     colour = "black",
+#     inherit.aes = FALSE
+#   ) +
+#   
+#   geom_point(
+#     alpha = 0.2,
+#     size = 0.7,
+#     shape = 16,
+#     colour = "royalblue"
+#   ) +
+#   
+#   facet_grid(
+#     rows = vars(age_y),
+#     cols = vars(age_x),
+#     # drop = FALSE
+#   ) +
+#   
+#   scale_x_continuous(
+#     breaks = scales::breaks_width(100)
+#   ) +
+#   
+#   labs(
+#     x = "Peak day of infections",
+#     y = "Peak day of infections"
+#   ) +
+#   
+#   common_theme +
+#   
+#   theme(
+#     # Show both horizontal and vertical major gridlines
+#     panel.grid.major.x = element_line(
+#       colour = "grey85",
+#       linewidth = 0.3
+#     ),
+#     panel.grid.major.y = element_line(
+#       colour = "grey85",
+#       linewidth = 0.3
+#     ),
+#     
+#     # Smaller axis tick labels
+#     axis.text = element_text(size = 8)
+#   )
+# 
+# ggsave(
+#   filename = file.path(
+#     output_path,
+#     "fig_peak_pairs_age_strat.png"
+#   ),
+#   plot = fig_peak_pairs,
+#   width = 7.33,
+#   height = 8.9,
+#   units = "in",
+#   device = "png",
+#   dpi = 300
+# )
+# 
+# 
+
+age_levels <- age_levels_no_all
+
+n_age <- length(age_levels)
+plot_list <- list()
+
+for (row in 2:n_age) {
+  
+  row_plots <- list()
+  
+  for (col in 1:(n_age - 1)) {
+    
+    if (col < row) {
+      
+      age_x_this <- age_levels[col]
+      age_y_this <- age_levels[row]
+      
+      df_this <- df_pairs %>%
+        filter(
+          age_x == age_x_this,
+          age_y == age_y_this
+        )
+      
+      p <- ggplot(
+        df_this,
+        aes(
+          x = peak_x,
+          y = peak_y
+        )
+      ) +
+        
+        geom_abline(
+          intercept = 0,
+          slope = 1,
+          linewidth = 0.3,
+          linetype = "dashed"
+        ) +
+        
+        geom_point(
+          alpha = 0.2,
+          size = 0.6,
+          shape = 16,
+          colour = "royalblue"
+        ) +
+        
+        scale_x_continuous(
+          breaks = seq(0, 400, by = 100)
+        ) +
+        
+        common_theme +
+        
+        theme(
+          panel.grid.major.x = element_line(
+            colour = "grey85",
+            linewidth = 0.3
+          ),
+          panel.grid.major.y = element_line(
+            colour = "grey85",
+            linewidth = 0.3
+          ),
+          axis.text = element_text(size = 7),
+          
+          # Suppress axis titles on individual panels
+          axis.title = element_blank()
+        )
+      
+      # Only show x-axis tick labels on bottom row
+      if (row != n_age) {
+        p <- p +
+          theme(
+            axis.text.x = element_blank(),
+            axis.ticks.x = element_blank()
+          )
+      }
+      
+      # Only show y-axis tick labels on first column
+      if (col != 1) {
+        p <- p +
+          theme(
+            axis.text.y = element_blank(),
+            axis.ticks.y = element_blank()
+          )
+      }
+      
+      # Age-group label along bottom
+      if (row == n_age) {
+        p <- p +
+          labs(x = age_x_this) +
+          theme(
+            axis.title.x = element_text(size = 8)
+          )
+      }
+      
+      # Age-group label along left
+      if (col == 1) {
+        p <- p +
+          labs(y = age_y_this) +
+          theme(
+            axis.title.y = element_text(size = 8)
+          )
+      }
+      
+    } else {
+      
+      # Completely blank space above diagonal
+      p <- plot_spacer()
+      
+    }
+    
+    row_plots[[col]] <- p
+    
+  }
+  
+  plot_list[[row - 1]] <- wrap_plots(
+    row_plots,
+    nrow = 1
+  )
+}
+
+fig_peak_pairs <- wrap_plots(
+  plot_list,
+  ncol = 1
+) +
+  plot_annotation(
+    theme = theme(
+      plot.margin = margin(5, 5, 5, 5)
+    )
+  )
+
+ggsave(
+  filename = file.path(
+    output_path,
+    "fig_peak_pairs_age_strat_v2.png"
+  ),
+  plot = fig_peak_pairs,
+  width = 7.33,
+  height = 8.9,
+  units = "in",
+  device = "png",
+  dpi = 300
+)
+
+# ################################################################################
+# END FIGURE AGE FACETTED CORRELATION PLOT OF PEAK DAYS OF INFECTION INCIDENCE
+# ################################################################################ 
+
+# ################################################################################
+# FIGURE VACCINE ROLLOUT TIMING
+# ################################################################################ 
+
+
+iiv_rates <- c(
+  0.00266946, 0.00334557, 0.00737364, 0.03162889, 0.07259051, 0.1482384,
+  0.24145878, 0.36451686, 0.47168377, 0.56855491, 0.65137032, 0.75339126,
+  0.81009063, 0.84931351, 0.88319599, 0.91812563, 0.93545698, 0.95122565,
+  0.96457128, 0.97785923, 0.9846138, 0.99014375, 0.99475859, 1.0
+)
+
+laiv_rates <- c(
+  0.16666667, 0.33333333, 0.5,
+  0.66666667, 0.83333333, 1
+)
+
+week_end_dates <- as.Date(c(
+  "2026-03-07", "2026-03-14", "2026-03-21", "2026-03-31",
+  "2026-04-07", "2026-04-14", "2026-04-21", "2026-04-30",
+  "2026-05-07", "2026-05-14", "2026-05-21", "2026-05-31",
+  "2026-06-07", "2026-06-14", "2026-06-21", "2026-06-30",
+  "2026-07-07", "2026-07-14", "2026-07-21", "2026-07-31",
+  "2026-08-07", "2026-08-14", "2026-08-21", "2026-08-31"
+))
+
+
+df_vaccination <- bind_rows(
+  data.frame(
+    week_end = week_end_dates,
+    cumulative = iiv_rates,
+    vaccine = "IIV"
+  ),
+  
+  data.frame(
+    week_end = week_end_dates,
+    cumulative = c(
+      laiv_rates,
+      rep(1, length(iiv_rates) - length(laiv_rates))
+    ),
+    vaccine = "LAIV"
+  )
+)
+
+fig_vaccination_rollout <- ggplot(df_vaccination, aes(x = week_end, y = cumulative, colour = vaccine)) +
+  geom_point(alpha = 0.7, size = 1.0, shape = 16) +
+  geom_line() +
+  scale_color_brewer("Vaccination type",palette="Dark2",
+                     guide = guide_legend(
+                       override.aes = list(alpha = 1, size = 2)
+                     ))+
+  scale_x_date(
+        breaks = week_end_dates,
+        date_labels = "%b %d"
+      ) +
+  
+  scale_y_continuous(
+    limits = c(0, 1),
+    expand = expansion(mult=c(0.02, 0.05)),
+    breaks= seq(0, 1, by = 0.2),
+    labels = scales::percent
+  )+
+  labs(
+    x = "Week ending on",
+    y = "Campaign progression (%)"
+  ) +
+  geom_hline(
+    yintercept = 0,
+    linetype = "dashed",
+    linewidth = 0.45,
+    colour = "black"
+  ) +
+  
+  common_theme +
+  theme(
+    legend.position = "bottom",
+    legend.direction = "horizontal",
+    legend.justification = "center",
+    legend.background = element_blank(),
+    legend.box.background = element_rect(
+      colour = "black",
+      fill = NA,
+      linewidth = 0.35
+    ),
+    axis.text.x = element_text(
+            angle = 45,
+            hjust = 1,
+            vjust = 1
+          )
+  ) 
+
+ggsave(filename = file.path(output_path,"fig_vaccination_rollout.png"), plot = fig_vaccination_rollout, height = 4.5, width = 7.33, units = "in", device = "png", dpi = 300)
+
+
+# ################################################################################
+# END FIGURE VACCINE ROLLOUT TIMING
+# ################################################################################ 
+# 
+# ################################################################################
+# FIGURE TIMING PEAK SCHOOL-AGE CHILDREN VS REST
+# ################################################################################ 
+
+
+source_file_daily_inf <- file.path(ROOT, paste("R outputs", source_file_type, vaccination_term), "dat_uom_infection_with_waning")
+ds_daily_inf <- open_dataset(source_file_daily_inf)
+
+df_timing_peaks <- ds_daily_inf %>%
+  filter(
+    scenario == "Status_quo"
+  ) %>%
+  select(simulation_index, run_nr, age_group, horizon, value) %>%
+  collect()
+
+df_filtered_timing_peaks_school_age <- df_timing_peaks %>%
+  filter(age_group %in% c("5-11", "12-17")) %>%
+  group_by(simulation_index, run_nr, horizon) %>%
+  summarise(value = sum(value), .groups = "drop") %>%
+  group_by(simulation_index, run_nr) %>%
+  slice_max(
+    order_by = value,
+    n = 1,
+    with_ties = FALSE
+  ) %>%
+  ungroup() %>%
+  mutate(age_category = "school age") %>%
+  select(age_category, peak_day = horizon)
+
+df_filtered_timing_peaks_non_school_age <- df_timing_peaks %>%
+  filter(!age_group %in% c("5-11", "12-17")) %>%
+  group_by(simulation_index, run_nr, horizon) %>%
+  summarise(value = sum(value), .groups = "drop") %>%
+  group_by(simulation_index, run_nr) %>%
+  slice_max(
+    order_by = value,
+    n = 1,
+    with_ties = FALSE
+  ) %>%
+  ungroup() %>%
+  mutate(age_category = "non school age") %>%
+  select(age_category, peak_day = horizon)
+
+df_filtered_timing_peaks <- rbind(df_filtered_timing_peaks_school_age, df_filtered_timing_peaks_non_school_age)
+
+df_filtered_timing_peaks$age_category <- factor(df_filtered_timing_peaks$age_category, levels = c("school age", "non school age"))
+
+df_filtered_timing_peaks_summary <- df_filtered_timing_peaks %>%
+  group_by(age_category) %>%
+  summarise(
+    median_tot = median(peak_day),
+    upr95_per = quantile(peak_day, 0.975),
+    lwr95_per = quantile(peak_day, 0.025),
+    upr50_per = quantile(peak_day, 0.75),
+    lwr50_per = quantile(peak_day, 0.25),
+    .groups = "drop"
+  )
+
+median_breaks <- df_filtered_timing_peaks_summary$median_tot
+
+fig_timing_peaks <- ggplot(df_filtered_timing_peaks, aes(x=age_category, y= peak_day, color=age_category))+
+  geom_point(position = position_jitterdodge(jitter.width = 0.35, jitter.height = 0, dodge.width = 0.75), alpha=0.2, size = 1.0, shape=16)+
+  geom_pointrange(
+    data = df_filtered_timing_peaks_summary,
+    aes(x=age_category, y=median_tot, ymin=lwr50_per, ymax=upr50_per, group=age_category),
+    position = position_dodge(width = 0.75), inherit.aes = FALSE, colour = "black", linewidth = 0.65 , fatten = 2)+
+  scale_color_brewer("School age status",palette="Dark2",
+                     guide = guide_legend(
+                       override.aes = list(alpha = 1, size = 2)
+                     ))+
+  scale_y_continuous(
+    limits = c(0, 365),
+    expand = expansion(mult=c(0.02, 0.01)),
+    breaks = sort(unique(c(
+      c(0, 100, 200, 300)
+    ))),
+    labels = scales::label_number(accuracy = 1)
+  )+
+  labs(
+    x = "School age status",
+    y = "Day of peak infection incidence"
+  ) +
+  geom_hline(
+    yintercept = 0,
+    linetype = "dashed",
+    linewidth = 0.45,
+    colour = "black"
+  ) +
+  
+  geom_segment(
+    x = 0,
+    xend = 1,
+    y = df_filtered_timing_peaks_summary$median_tot[1],
+    yend = df_filtered_timing_peaks_summary$median_tot[1],
+    linetype = "dashed",
+    linewidth = 0.35,
+    colour = "black"
+  ) +
+  
+  geom_segment(
+    x = 0,
+    xend = 2,
+    y = df_filtered_timing_peaks_summary$median_tot[2],
+    yend = df_filtered_timing_peaks_summary$median_tot[2],
+    linetype = "dashed",
+    linewidth = 0.35,
+    colour = "black"
+  ) +
+  
+  annotate(
+    "text",
+    x = 0.55,
+    y = median_breaks[1] - 11,
+    label = round(median_breaks[1]),
+    hjust = 1
+  ) +
+  
+  annotate(
+    "text",
+    x = 0.55,
+    y = median_breaks[2] + 11,
+    label = round(median_breaks[2]),
+    hjust = 1
+  ) +
+  
+  common_theme +
+  theme(
+    legend.position = "bottom",
+    legend.direction = "horizontal",
+    legend.justification = "center",
+    legend.background = element_blank(),
+    legend.box.background = element_rect(
+      colour = "black",
+      fill = NA,
+      linewidth = 0.35
+    )
+  ) 
+
+ggsave(filename = file.path(output_path,"fig_timing_peaks.png"), plot = fig_timing_peaks, height = 4.5, width = 7.33, units = "in", device = "png", dpi = 300)
+
+# ################################################################################
+# END FIGURE TIMING PEAK SCHOOL-AGE CHILDREN VS REST
+# ################################################################################ 
+
+# ################################################################################
+# FIGURE CONTACT MATRIX
+# ################################################################################ 
+
+age_groups <- c("<1", "1–2", "3–4", "5–11",
+                "12–17", "18–64", "65–79", "80+")
+
+contact_matrix <-t(matrix(
+  c(  
+    0.375779488,	0.221425972,	0.117743201,	0.052502325,	0.02248264,	0.093521173,	0.007517928,	0.001580057,
+    0.224587717,	0.68020258,	0.275817706,	0.091685117,	0.032435929,	0.103449184,	0.015630453,	0.00444946,
+    0.368313203,	0.850640683,	2.837925261,	0.707209083,	0.14866367,	0.325028629,	0.117721982,	0.048703109,
+    0.405668348,	0.698447857,	1.746863481,	8.467514786,	1.801643719,	0.677721934,	0.347731176,	0.189136569,
+    0.154319918,	0.219504573,	0.326210601,	1.600482745,	9.463746013,	0.878385651,	0.189544108,	0.126039369,
+    5.355102935,	5.840197141,	5.949740779,	5.022464015,	7.327712821,	10.38538854,	3.609060442,	2.608662633,
+    0.091321412,	0.187192551,	0.457141402,	0.546670304,	0.3354363,	0.765615499,	1.753038513,	0.728460955,
+    0.006196919,	0.017204937,	0.061063042,	0.096003292,	0.072016955,	0.178674775,	0.235198769,	0.129056892
+    ),
+  nrow = 8,
+  byrow = TRUE
+))
+
+# Convert matrix to long format
+df_contact <- as.data.frame(contact_matrix) %>%
+  mutate(age_from = age_groups) %>%
+  pivot_longer(
+    cols = -age_from,
+    names_to = "age_to_index",
+    values_to = "contact"
+  ) %>%
+  mutate(
+    age_to = rep(age_groups, times = length(age_groups)),
+    age_from = factor(age_from, levels = age_groups),
+    age_to = factor(age_to, levels = age_groups)
+  )
+
+age_labels <- c(
+  "<1"    = "<1",
+  "1–2"   = "1–<3",
+  "3–4"   = "3–<5",
+  "5–11"  = "5–<12",
+  "12–17" = "12-<18",
+  "18–64" = "18-<65",
+  "65–79" = "65-<80",
+  "80+"   = "80+"
+)
+
+# Plot
+fig_contact_matrix <- ggplot(
+  df_contact,
+  aes(
+    x = age_to,
+    y = age_from,
+    fill = contact
+  )
+) +
+  geom_tile() +
+  scale_x_discrete(labels = age_labels) +
+  scale_y_discrete(labels = age_labels) +
+  # scale_fill_gradient(
+    # low = "aliceblue",
+    # high = "darkblue"
+  # ) +
+  scale_fill_distiller(
+    palette = "Blues",
+    direction = 1,
+    transform = 'sqrt'
+    ) +
+  labs(
+    x = "Age group to",
+    y = "Age group from"
+  ) +
+  coord_equal() +
+  common_theme +
+  theme(
+    legend.position = "none",
+    axis.text.x = element_text(angle = 30, hjust = 1),
+    axis.ticks = element_blank(),
+    panel.border = element_blank(),
+    panel.grid = element_blank()
+  )
+
+ggsave(filename = file.path(output_path,"Conmat_matrix.png"), plot = fig_contact_matrix, height = 4.5, width = 7.33, units = "in", device = "png", dpi = 300)
+
+# ################################################################################
+# END FIGURE CONTACT MATRIX
+# ################################################################################ 
+
+##############################################################################################################
+##############################################################################################################
+##############################################################################################################
+##############################################################################################################
+
+source_file_daily_inf <- file.path(ROOT, paste("R outputs", source_file_type, vaccination_term), "dat_uom_infection_with_waning")
+ds_daily_inf <- open_dataset(source_file_daily_inf)
+
+df_temp <- ds_daily_inf %>%
+  filter(
+    scenario == "Status_quo"
+  ) %>%
+  group_by(simulation_index, run_nr, age_group) %>%
+  summarise(value = sum(value), .groups = "drop") %>%
+  filter(age_group %in% c("5-11", "12-17"))%>%
+  collect() %>%
+  left_join(ages, by = "age_group") %>%
+  mutate(ipht = 100000 * value / pop_size)
+
+df_temp_5_11 <- df_temp %>%
+  filter(age_group == "5-11")
+
+min(df_temp_5_11$ipht)
+
+max(df_temp_5_11$ipht)
+
+median(df_temp_5_11$ipht)
+
+df_temp_12_17 <- df_temp %>%
+  filter(age_group == "12-17")
+
+min(df_temp_12_17$ipht)
+
+max(df_temp_12_17$ipht)
+
+median(df_temp_12_17$ipht)
+
+
+####################################################################################
+
+
+# df_R0 <- read_csv(file.path(ROOT, "ABC outputs with waning", "list_R0.csv")) %>%
+#   select(R0)
+# 
+# min(df_R0$R0)
+# 
+# max(df_R0$R0)
+# 
+# median(df_R0$R0)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 

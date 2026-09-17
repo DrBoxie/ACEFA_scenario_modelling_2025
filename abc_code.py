@@ -190,6 +190,12 @@ def classic_abc(parallel = True, nr_cores = 12):
         acc_seed_list_df = pd.DataFrame(seed_list[list_accepted_particles], columns = ["Accepted_seeds"], index = list_accepted_particles)
         acc_seed_list_df.to_csv(os.path.join(fig_folder_path, "accepted_seeds.csv"), index=True)
         
+        acc_R0_df = pd.DataFrame(list_R0_acc, columns= ["R0"], index = list_accepted_particles)
+        acc_R0_df.to_csv(os.path.join(fig_folder_path, "list_R0_acc.csv"), index=True)
+        
+        rej_R0_df = pd.DataFrame(list_R0_rej, columns= ["R0"])
+        rej_R0_df.to_csv(os.path.join(fig_folder_path, "list_R0_rej.csv"))
+        
         print("Saving all particles.\n")
         all_part_df = pd.DataFrame(sample_array, columns=sample_keys)
         all_part_df.to_csv(os.path.join(fig_folder_path, "all_particles.csv"), index=False)
@@ -283,7 +289,9 @@ def update_params(params, particle, keys, it = None):
         "phi_V1": phi_V1,
         "frac_S1": frac_S1,
         "shift": shift,
-        "half_life": half_life
+        "half_life": half_life,
+        "beta_0": beta_0_val,                                                      # not strictly speaking part of the sample, but needed for R_0 calculation
+        "beta_1": beta_1_val
         }
     
     # The generic values for the relevant parameters need to be overwritten by their values in the particle, 
@@ -438,7 +446,7 @@ if __name__ == "__main__":
     
     start_time_laiv = time.time()
 
-    laiv.laiv_phis(parallel = paral, waning = waning, nr_cores = cores)
+    laiv.laiv_phis(parallel = paral, waning = waning, vaccination_term = vaccination_term , nr_cores = cores)
 
     end_time = time.time()
     elapsed = end_time - start_time_laiv

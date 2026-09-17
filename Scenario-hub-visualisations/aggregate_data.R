@@ -1,5 +1,5 @@
 source_file_type <- "with waning"
-vaccination_term <- "term1 vaccination"
+vaccination_term <- "term2 vaccination"
 
 library(arrow)
 library(dplyr)

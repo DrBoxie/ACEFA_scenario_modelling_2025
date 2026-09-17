@@ -34,7 +34,7 @@ def forw_proj(parallel = True, waning = False, vaccination_term = "term_1" , nr_
     seed = 790202       # Used whenever multiple runs are done for each combo of particle and scenario
     
     output_figs = True
-    output_dfs = True
+    output_dfs = False
     analyse_ARs = False
     
     if platform.system() == "Windows":
@@ -512,11 +512,12 @@ def plot_AR_swarm(output_folder_path, scenarios, results_list, colors, labels, t
     fig_filepath_AR_swarm_no_lines = os.path.join(output_folder_path, "AR_swarm_no_lines")
     fig_filepath_AR_swarm_lines = os.path.join(output_folder_path, "AR_swarm_lines")
     
-    tick_label_size = 22
-    axis_label_size= 24
+    tick_label_size = 9
+    axis_label_size= 12
+    scatter_size = 12
     
-    fig_lines, ax_lines = plt.subplots(figsize=(18,8))
-    fig_no_lines, ax_no_lines = plt.subplots(figsize=(18,8))
+    fig_lines, ax_lines = plt.subplots(figsize=(7.33,8.38))
+    fig_no_lines, ax_no_lines = plt.subplots(figsize=(7.33,8.38))
     
     figures = [
         (fig_no_lines, fig_filepath_AR_swarm_no_lines),
@@ -541,12 +542,12 @@ def plot_AR_swarm(output_folder_path, scenarios, results_list, colors, labels, t
         
         x_jittered = x_pos + rng2.uniform(-width, width, nr_parts)
         
-        ax_no_lines.scatter(x_jittered, AR, s = 20, alpha = 0.6, color=colors[key], edgecolors="none", zorder = 2)
+        ax_no_lines.scatter(x_jittered, AR, s = scatter_size, alpha = 0.6, color=colors[key], edgecolors="none", zorder = 2)
         
         scatter_plots_list = [ax_lines]
         
         for ax in scatter_plots_list:
-            ax.scatter(x_jittered, AR, s = 20, alpha = 0.6, color=colors[key], edgecolors="none", zorder = 2)
+            ax.scatter(x_jittered, AR, s = scatter_size, alpha = 0.6, color=colors[key], edgecolors="none", zorder = 2)
         
         med = np.median(AR)
         
@@ -571,8 +572,9 @@ def plot_AR_swarm(output_folder_path, scenarios, results_list, colors, labels, t
         ax.tick_params(axis="both", which="major", labelsize=tick_label_size)
         ax.set_xticks(range(1, len(scenarios)+1))
         ax.set_xticklabels([])
-        ax.set_ylabel("Attack rate", fontsize = axis_label_size)
-        ax.yaxis.set_major_formatter(thin_space_formatter)
+        ax.set_ylabel("Infection attack rate ('00000s)", fontsize = axis_label_size)
+        ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, pos: f"{x / 100000:g}"))
+        # ax.yaxis.set_major_formatter(thin_space_formatter)
         ax.grid(False)
     
     ax_no_lines.set_xticklabels([labels[k] for k in scenarios], rotation=45, ha="right")
@@ -580,7 +582,7 @@ def plot_AR_swarm(output_folder_path, scenarios, results_list, colors, labels, t
     
     for fig, filepath in figures:
         fig.tight_layout()
-        fig.savefig(filepath)
+        fig.savefig(filepath, dpi=300)
         plt.close(fig)
     
 def plot_spaghetti_per_scenario(output_folder_path, max_baseline, thin_space_formatter, nr_parts, days, results_list, colors, labels):
@@ -588,83 +590,196 @@ def plot_spaghetti_per_scenario(output_folder_path, max_baseline, thin_space_for
     filename_spag = "compare_all_scenarios_spag"
     fig_filepath_spag = os.path.join(output_folder_path, filename_spag)
     
-    nr_rows, nr_cols = 9, 3
-    fig_compare_all, axes = plt.subplots(nr_rows, nr_cols, figsize=(24, 21), sharex=True)
-    axes = axes.flatten() 
+    nr_rows, nr_cols = 7, 4
+    fig_compare_all, axes = plt.subplots(nr_rows, nr_cols, figsize=(24, 21), sharex=True, sharey = True)
+    # axes = axes.flatten() 
     
-    ax_map ={
-        "A": axes[1], # 0 and 2 are skipped because the top row only contains the baseline figure
-        "B": axes[3],
-        "F": axes[4],
-        "J": axes[5],
-        "N": axes[6],
-        "R": axes[7],
-        "V": axes[8],
-        "C": axes[9],
-        "G": axes[10],
-        "K": axes[11],
-        "O": axes[12],
-        "S": axes[13],
-        "W": axes[14],
-        "D": axes[15],
-        "H": axes[16],
-        "L": axes[17],
-        "P": axes[18],
-        "T": axes[19],
-        "X": axes[20],
-        "E": axes[21],
-        "I": axes[22],
-        "M": axes[23],
-        "Q": axes[24],
-        "U": axes[25],
-        "Y": axes[26]
-        }
-    
-    tick_label_size = 22
-    # legend_size = 22
-    axis_label_size= 24
-    title_size = 24
-    
-    axes[0].axis("off")  # left of baseline
-    axes[2].axis("off")  # right of baseline
-    
-    for key, ax in ax_map.items():
-        ax.set_ylim(0, max_baseline * 1.1)
-        ax.yaxis.set_major_formatter(thin_space_formatter)
-        ax.tick_params(axis = "both", which = "major", labelsize = tick_label_size)
-        
-        ax.set_title(
-          labels[key],
-          fontsize=title_size,
-          pad=5
+    fig_compare_all.subplots_adjust(
+      left=0.08,
+      right=0.91,
+      bottom=0.07,
+      top=0.84,
+      hspace=0.30,
+      wspace=0.12
       )
     
+    scenario_grid = [
+      ["B", "C", "D", "E"],  # Pessimistic, 5–12
+      ["F", "G", "H", "I"],  # Pessimistic, 5–18
+      ["J", "K", "L", "M"],  # Central, 5–12
+      ["N", "O", "P", "Q"],  # Central, 5–18
+      ["R", "S", "T", "U"],  # Optimistic, 5–12
+      ["V", "W", "X", "Y"]   # Optimistic, 5–18
+      ]
+
+    row_labels = [
+      "Pessimistic\n5–12",
+      "Pessimistic\n5–18",
+      "Central\n5–12",
+      "Central\n5–18",
+      "Optimistic\n5–12",
+      "Optimistic\n5–18"
+      ]
+    
+    column_labels = [
+      "20%",
+      "40%",
+      "60%",
+      "80%"
+      ]
+    
+    tick_label_size = 20
+    axis_label_size = 24
+    strip_label_size = 22
+    
+    ten_thousand_formatter = plt.FuncFormatter(lambda x, pos: f"{x / 10000:g}")
+    
+    for ax in axes[0, :]:
+      ax.axis("off")
+
+    pos = axes[0, 1].get_position()
+
+    baseline_width = pos.width
+    baseline_height = pos.height
+    
+    grid_left = axes[1, 0].get_position().x0
+    grid_right = axes[1, 3].get_position().x1
+    grid_center = (grid_left + grid_right) / 2
+    
+    baseline_left = grid_center - baseline_width / 2
+    baseline_bottom = pos.y0
+    
+    baseline_ax = fig_compare_all.add_axes([
+      baseline_left,
+      baseline_bottom,
+      baseline_width,
+      baseline_height
+      ])
+    
+    # pos_left = axes[0, 1].get_position()
+    # pos_right = axes[0, 2].get_position()
+    # 
+    # baseline_ax = fig_compare_all.add_axes([pos_left.x0, pos_left.y0, pos_right.x1 - pos_left.x0, pos_left.height])
+    
+    baseline_ax.set_ylim(0, max_baseline * 1.1)
+    baseline_ax.set_xticks([0, 100, 200, 300])
+    baseline_ax.set_yticks([0, 5000, 10000])
+    baseline_ax.yaxis.set_major_formatter(ten_thousand_formatter)
+    
+    baseline_ax.tick_params(
+      axis = "both",
+      which = "major",
+      labelsize = tick_label_size,
+      width = 0.4
+    )
+    
+    for spine in baseline_ax.spines.values():
+      spine.set_linewidth(0.4)
+    
     for i in range(nr_parts):
-        for key, ax in ax_map.items():
-            ax.plot(days, results_list[i][0][key][0], color = colors[key], linewidth=0.8, alpha=0.6) # The last 0 in the subsetting of results_list selects only the first run for each particle when plotting the spaghetti plot
+      baseline_ax.plot(
+        days,
+        results_list[i][0]["A"][0],
+        color="black",
+        linewidth=0.5,
+        alpha=0.25
+        )
+
+    baseline_ax.set_title(
+      "Baseline",
+      fontsize=strip_label_size,
+      pad=4
+      )
     
-    for i, ax in enumerate(axes):
+    for row_idx, scenario_row in enumerate(scenario_grid):
+      
+      plot_row = row_idx + 1
+      
+      for col_idx, key in enumerate(scenario_row):
+        ax = axes[plot_row, col_idx]
         
-        # Determine if this ax is "active" (not turned off)
-        if not ax.has_data():  # axes[0] and axes[2] in top row should be off
-            continue
+        ax.set_ylim(0, max_baseline * 1.1)
+        ax.set_xticks([0, 100, 200, 300])
+        ax.set_yticks([0, 5000, 10000])
+        ax.yaxis.set_major_formatter(ten_thousand_formatter)
+
+        ax.tick_params(
+          axis="both",
+          which="major",
+          labelsize=tick_label_size,
+          width=0.4
+          )
         
-        row = i // nr_cols
-        
-        # X-label: only on bottom row
-        if row < nr_rows-1:
-            ax.set_xlabel("")
-        else:
-            ax.set_xlabel("Day", fontsize = axis_label_size)
-        
-        # no individual y-labels, but only one for the whole figure (except the top row)
-        ax.set_ylabel("")
-        fig_compare_all.supylabel("Daily infection incidence", fontsize = axis_label_size, x = 0.01)
-        axes[1].set_ylabel("Daily infection incidence", fontsize = axis_label_size)
-    
-    fig_compare_all.tight_layout()
-    fig_compare_all.subplots_adjust(top=0.95)
-    fig_compare_all.savefig(fig_filepath_spag)
+        for spine in ax.spines.values():
+          spine.set_linewidth(0.4)
+          
+        for i in range(nr_parts):
+          ax.plot(
+            days,
+            results_list[i][0][key][0],
+            color= colors[key],
+            linewidth=0.5,
+            alpha=0.25
+            )
+            
+        if row_idx == 0:
+          ax.set_title(
+            column_labels[col_idx],
+            fontsize=strip_label_size,
+            pad=8
+            )
+            
+        if col_idx == nr_cols - 1:
+          ax.text(
+            1.04,
+            0.5,
+            row_labels[row_idx],
+            transform=ax.transAxes,
+            rotation=90,
+            va="center",
+            ha="left",
+            fontsize=strip_label_size
+            )
+            
+        if row_idx < len(scenario_grid) - 1:
+          ax.tick_params(
+            axis="x",
+            labelbottom=False
+            )
+
+        if col_idx > 0:
+          ax.tick_params(
+            axis="y",
+            labelleft=False
+            )
+            
+    fig_compare_all.supxlabel(
+      "Day",
+      fontsize=axis_label_size,
+      y=0.02
+      )
+
+    fig_compare_all.supylabel(
+      "Daily infection incidence ('0000s)",
+      fontsize=axis_label_size,
+      x=0.02
+      )
+
+    # Label what the columns represent
+    fig_compare_all.text(
+      0.5,
+      0.855,
+      "LAIV coverage",
+      ha="center",
+      fontsize=axis_label_size
+      )
+
+    fig_compare_all.savefig(
+      fig_filepath_spag,
+      dpi=300,
+      bbox_inches="tight"
+      )
+
     plt.close(fig_compare_all)
 
 def update_daily_vacc(daily_vacc_admin, target_cover, t_laiv_start, t_laiv_end, laiv_rates, laiv_idx, N):

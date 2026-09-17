@@ -165,9 +165,9 @@ def compute_R0(params):
     # This calculated R0 with the initial value of beta during a run
     # and assuming all the gammas are the same (I'm using the value of gamma[0])
     
-    C, gamma, beta_full, N = itemgetter("C", "gamma", "beta", "N")(params)
+    C, gamma, beta_0, beta_1, N = itemgetter("C", "gamma", "beta_0", "beta_1", "N")(params)
     
-    beta = beta_full[0]
+    beta = beta_0
     gamma = gamma[0]
     
     N_a = N[:, np.newaxis]
@@ -175,7 +175,8 @@ def compute_R0(params):
     
     K = (beta / gamma) * C * (N_a / N_b)
     
-    R0 = max(np.linalg.eigvals(K).real)
+    # R0 = max(np.linalg.eigvals(K).real)
+    R0 = np.max(np.abs(np.linalg.eigvals(K)))
     
     return R0
     
