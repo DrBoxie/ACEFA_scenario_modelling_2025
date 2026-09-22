@@ -1,4 +1,4 @@
-# ACEFA Scenario Modelling 2025
+# ACEFA Scenario Modelling
 
 This repository contains the code for the ACEFA scenario-modelling analysis.
 
